@@ -1,14 +1,14 @@
 //
-//  PokerGTOTrainerApp.swift
-//  PokerGTOTrainer
+//  PokerTrainerApp.swift
+//  PokerTrainer
 //
-//  Created by Jules Park on 9/6/26.
+//  Created by PARK, SEHO on 9/6/26.
 //
 
 import SwiftUI
 
 @main
-struct PokerGTOTrainerApp: App {
+struct PokerTrainerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()

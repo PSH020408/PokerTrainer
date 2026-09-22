@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		8434773A304D2ADB00557B86 /* PokerGTOTrainer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PokerGTOTrainer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8434773A304D2ADB00557B86 /* PokerTrainer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PokerTrainer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		8434773C304D2ADB00557B86 /* PokerGTOTrainer */ = {
+		8434773C304D2ADB00557B86 /* PokerTrainer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = PokerGTOTrainer;
+			path = PokerTrainer;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -32,7 +32,7 @@
 		84347731304D2ADB00557B86 = {
 			isa = PBXGroup;
 			children = (
-				8434773C304D2ADB00557B86 /* PokerGTOTrainer */,
+				8434773C304D2ADB00557B86 /* PokerTrainer */,
 				8434773B304D2ADB00557B86 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -40,7 +40,7 @@
 		8434773B304D2ADB00557B86 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				8434773A304D2ADB00557B86 /* PokerGTOTrainer.app */,
+				8434773A304D2ADB00557B86 /* PokerTrainer.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		84347739304D2ADB00557B86 /* PokerGTOTrainer */ = {
+		84347739304D2ADB00557B86 /* PokerTrainer */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 84347745304D2ADC00557B86 /* Build configuration list for PBXNativeTarget "PokerGTOTrainer" */;
+			buildConfigurationList = 84347745304D2ADC00557B86 /* Build configuration list for PBXNativeTarget "PokerTrainer" */;
 			buildPhases = (
 				84347736304D2ADB00557B86 /* Sources */,
 				84347737304D2ADB00557B86 /* Frameworks */,
@@ -61,13 +61,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				8434773C304D2ADB00557B86 /* PokerGTOTrainer */,
+				8434773C304D2ADB00557B86 /* PokerTrainer */,
 			);
-			name = PokerGTOTrainer;
+			name = PokerTrainer;
 			packageProductDependencies = (
 			);
-			productName = PokerGTOTrainer;
-			productReference = 8434773A304D2ADB00557B86 /* PokerGTOTrainer.app */;
+			productName = PokerTrainer;
+			productReference = 8434773A304D2ADB00557B86 /* PokerTrainer.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -85,7 +85,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 84347735304D2ADB00557B86 /* Build configuration list for PBXProject "PokerGTOTrainer" */;
+			buildConfigurationList = 84347735304D2ADB00557B86 /* Build configuration list for PBXProject "PokerTrainer" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				84347739304D2ADB00557B86 /* PokerGTOTrainer */,
+				84347739304D2ADB00557B86 /* PokerTrainer */,
 			);
 		};
 /* End PBXProject section */
@@ -251,8 +251,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 635XG6JPSK;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = PokerTrainer;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -263,7 +265,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "PARK--SEHO.PokerGTOTrainer";
+				PRODUCT_BUNDLE_IDENTIFIER = com.sehopark.PokerTrainer;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -282,8 +284,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 635XG6JPSK;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = PokerTrainer;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -294,7 +298,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "PARK--SEHO.PokerGTOTrainer";
+				PRODUCT_BUNDLE_IDENTIFIER = com.sehopark.PokerTrainer;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -309,7 +313,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		84347735304D2ADB00557B86 /* Build configuration list for PBXProject "PokerGTOTrainer" */ = {
+		84347735304D2ADB00557B86 /* Build configuration list for PBXProject "PokerTrainer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				84347743304D2ADC00557B86 /* Debug */,
@@ -318,7 +322,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		84347745304D2ADC00557B86 /* Build configuration list for PBXNativeTarget "PokerGTOTrainer" */ = {
+		84347745304D2ADC00557B86 /* Build configuration list for PBXNativeTarget "PokerTrainer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				84347746304D2ADC00557B86 /* Debug */,
