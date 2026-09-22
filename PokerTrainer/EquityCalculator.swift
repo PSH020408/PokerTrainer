@@ -7,15 +7,7 @@
 
 import Foundation
 
-// Legal actions shared by the player and the computer opponent.
-enum PokerAction: Sendable {
-    case fold
-    case check
-    case call
-    case raise(amount: Int)
-}
-
-class EquityCalculator {
+nonisolated final class EquityCalculator {
 
     nonisolated static func calculateEquity(
         playerHand: [Card],
@@ -23,44 +15,65 @@ class EquityCalculator {
         activePlayersCount: Int,
         simulations: Int = 5000
     ) -> Double {
-        var wins = 0.0
+        guard simulations > 0,
+              activePlayersCount >= 2,
+              playerHand.count == 2,
+              communityCards.count <= 5 else {
+            return 0.0
+        }
+
+        let knownCards = playerHand + communityCards
+        guard Set(knownCards).count == knownCards.count else {
+            return 0.0
+        }
+
+        let cardsNeeded = (5 - communityCards.count) + ((activePlayersCount - 1) * 2)
+        let availableCards = Deck.standardCards.filter { !knownCards.contains($0) }
+        guard cardsNeeded <= availableCards.count else {
+            return 0.0
+        }
+
+        var equityShare = 0.0
+        var completedSimulations = 0
 
         for _ in 0..<simulations {
-            let deck = Deck()
-            let knownCards = playerHand + communityCards
+            if Task.isCancelled {
+                break
+            }
+
+            let remainingCards = availableCards.shuffled()
+            var nextCardIndex = 0
 
             var simCommunity = communityCards
             while simCommunity.count < 5 {
-                if let card = deck.draw(), !knownCards.contains(card) {
-                    simCommunity.append(card)
-                }
+                simCommunity.append(remainingCards[nextCardIndex])
+                nextCardIndex += 1
             }
 
             var opponentHands: [[Card]] = []
             for _ in 0..<(activePlayersCount - 1) {
-                var oppHand: [Card] = []
-                while oppHand.count < 2 {
-                    if let card = deck.draw(), !knownCards.contains(card), !simCommunity.contains(card) {
-                        oppHand.append(card)
-                    }
-                }
-                opponentHands.append(oppHand)
+                opponentHands.append([
+                    remainingCards[nextCardIndex],
+                    remainingCards[nextCardIndex + 1]
+                ])
+                nextCardIndex += 2
             }
 
-            let myScore = Evaluator.evaluate(cards: playerHand + simCommunity)
-            var iWon = true
-
-            for oppHand in opponentHands {
-                let oppScore = Evaluator.evaluate(cards: oppHand + simCommunity)
-                if oppScore > myScore {
-                    iWon = false
-                    break
-                }
+            let playerScore = Evaluator.evaluate(cards: playerHand + simCommunity)
+            let opponentScores = opponentHands.map {
+                Evaluator.evaluate(cards: $0 + simCommunity)
             }
-            if iWon { wins += 1.0 }
+            let bestScore = opponentScores.reduce(playerScore, max)
+
+            if playerScore == bestScore {
+                let tiedWinners = 1 + opponentScores.filter { $0 == bestScore }.count
+                equityShare += 1.0 / Double(tiedWinners)
+            }
+            completedSimulations += 1
         }
 
-        return (wins / Double(simulations)) * 100.0
+        guard completedSimulations > 0 else { return 0.0 }
+        return (equityShare / Double(completedSimulations)) * 100.0
     }
 
     nonisolated static func makeOpponentDecision(
@@ -68,7 +81,7 @@ class EquityCalculator {
         potSize: Int,
         callAmount: Int,
         difficultyLevel: Int
-    ) async -> (action: PokerAction, delaySeconds: Double) {
+    ) async throws -> (action: PokerAction, delaySeconds: Double) {
 
         let noiseFactor: Double
         switch difficultyLevel {
@@ -103,7 +116,7 @@ class EquityCalculator {
             }
         }
 
-        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        try await Task.sleep(for: .seconds(delay))
         return (decision, delay)
     }
 }

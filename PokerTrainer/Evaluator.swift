@@ -8,7 +8,7 @@
 import Foundation
 
 // Poker hand categories ordered from weakest to strongest.
-enum HandRank: Int, Comparable, Sendable {
+nonisolated enum HandRank: Int, Comparable, Sendable {
     case highCard = 1
     case onePair
     case twoPair
@@ -39,7 +39,7 @@ enum HandRank: Int, Comparable, Sendable {
 }
 
 // Final result of a hand evaluation.
-struct HandScore: Comparable, Sendable {
+nonisolated struct HandScore: Comparable, Sendable {
     let rank: HandRank
     let tieBreakers: [Int] // Ranked values used to break ties, in descending order.
 
@@ -58,7 +58,7 @@ struct HandScore: Comparable, Sendable {
                 return l < r
             }
         }
-        return false
+        return lhs.tieBreakers.count < rhs.tieBreakers.count
     }
 
     // Provides an explicit greater-than comparison for score evaluation.
@@ -78,9 +78,12 @@ nonisolated final class Evaluator: @unchecked Sendable {
 
         // Seven cards produce 21 five-card combinations; return the best score.
         let combinations = getCombinations(cards, k: 5)
-        var bestScore = HandScore(rank: .highCard, tieBreakers: [])
+        guard let firstCombination = combinations.first else {
+            return HandScore(rank: .highCard, tieBreakers: [])
+        }
 
-        for combo in combinations {
+        var bestScore = evaluate5Cards(firstCombination)
+        for combo in combinations.dropFirst() {
             let score = evaluate5Cards(combo)
             if score > bestScore {
                 bestScore = score

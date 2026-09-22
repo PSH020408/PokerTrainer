@@ -8,7 +8,7 @@
 | Type | Independent offline iOS project |
 | Stack | Swift, SwiftUI, Swift Concurrency |
 | Focus | Mobile development, poker rules, probability, and game-state design |
-| Status | Working prototype under structured redesign |
+| Status | Tested heads-up prototype; three-player expansion planned |
 
 ## Goal
 
@@ -24,6 +24,8 @@ I created PokerTrainer to explore whether a complete poker practice experience c
 - A SwiftUI table with cards, chips, actions, and showdown results
 - A simple four-level progression system
 - Background calculation to avoid blocking the main interface
+- A deterministic rules engine with explicit turns, positions, and hand outcomes
+- A 19-test regression suite covering rules, equity, evaluation, and chip conservation
 
 ## Why I chose probability instead of ML
 
@@ -39,7 +41,9 @@ After finishing the first playable version, I reviewed the project instead of pr
 
 The central lesson was that a poker game needs an explicit state machine. Equal bets do not always mean that every player has acted, and an all-in state does not always mean that the hand can immediately proceed to showdown.
 
-The redesign therefore separates:
+I then replaced the original game flow with a deterministic heads-up engine. The new implementation alternates dealer and blind positions, validates actions, preserves responses to all-ins, returns unmatched chips, distinguishes folds from showdowns, rejects stale calculations, and divides tied equity correctly. Nineteen automated tests include a 100-hand chip-conservation run.
+
+The architecture now separates:
 
 - A deterministic poker engine
 - Computer-opponent decisions
@@ -48,7 +52,7 @@ The redesign therefore separates:
 
 ## Planned evolution
 
-The next version will first correct and test heads-up rules. It will then add a three-player table, main and side pots, local continuation, stronger range-aware opponents, and card-and-chip animations. The final product goal is an offline campaign ending in a three-player final table and championship summary.
+The next major version will generalise the engine for a three-player table with main and side pots. Later phases add local continuation, stronger range-aware opponents, and card-and-chip animations. The final product goal is an offline campaign ending in a three-player final table and championship summary.
 
 ## Skills demonstrated
 
@@ -64,9 +68,8 @@ The next version will first correct and test heads-up rules. It will then add a 
 ## Short portfolio description
 
 **PokerTrainer — Independent iOS Project**  
-Designed and developed an offline SwiftUI Texas Hold'em prototype featuring best-five-of-seven hand evaluation, Monte Carlo equity estimation, and an explainable rule-based computer opponent. Reviewed the first implementation, reproduced state and betting defects, and created a phased redesign toward tested three-player gameplay, local persistence, stronger opponents, and state-driven animation.
+Designed and developed an offline SwiftUI Texas Hold'em game featuring a tested heads-up rules engine, best-five-of-seven hand evaluation, Monte Carlo equity estimation, and an explainable rule-based computer opponent. Reproduced defects in the original prototype and implemented explicit turn order, legal action validation, effective-stack settlement, stale-task protection, and automated regression tests before planning three-player gameplay.
 
 ## Interview summary
 
-> PokerTrainer is an offline iPhone poker project that combines deterministic game rules with Monte Carlo equity estimation. I deliberately used a rule-based opponent instead of claiming machine learning because I did not have a suitable training dataset, and the probabilistic approach was smaller, explainable, testable, and appropriate for local execution. After completing the prototype, I reproduced several betting and concurrency issues and converted them into a structured redesign roadmap.
-
+> PokerTrainer is an offline iPhone poker project that combines a tested deterministic rules engine with Monte Carlo equity estimation. I deliberately used a rule-based opponent instead of claiming machine learning because I did not have a suitable training dataset, and the probabilistic approach was smaller, explainable, testable, and appropriate for local execution. After reproducing betting and concurrency defects in the first prototype, I rebuilt the heads-up flow around explicit state transitions and regression tests.

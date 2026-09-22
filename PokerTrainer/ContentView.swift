@@ -26,6 +26,9 @@ struct ContentView: View {
                         Text("Opponent Level: \(gameManager.opponentLevel)")
                             .font(.subheadline)
                             .foregroundColor(.yellow)
+                        Text("\(gameManager.currentStreet.displayName) • Dealer: \(gameManager.dealer == .player ? "You" : "Opponent")")
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.75))
                     }
                     Spacer()
                     VStack(alignment: .trailing) {
@@ -53,9 +56,9 @@ struct ContentView: View {
                         .font(.caption)
                         .foregroundColor(.gray)
 
-                    // Keep the opponent's cards hidden until showdown.
+                    // Keep the opponent's cards hidden after folds and reveal them only at showdown.
                     HStack {
-                        if gameManager.currentStreet == .showdown {
+                        if gameManager.shouldRevealOpponentCards {
                             ForEach(gameManager.opponentHand, id: \.description) { card in
                                 CardView(card: card)
                             }
@@ -124,11 +127,11 @@ struct ContentView: View {
                     }
 
                     // Context-sensitive action controls.
-                    if gameManager.currentStreet == .showdown || gameManager.playerHand.isEmpty {
+                    if gameManager.isHandComplete || gameManager.playerHand.isEmpty {
                         Button(action: {
                             gameManager.startNewHand()
                         }) {
-                            Text("START NEXT HAND ♠️")
+                            Text(gameManager.nextHandButtonTitle)
                                 .font(.headline)
                                 .foregroundColor(.black)
                                 .frame(maxWidth: .infinity)
@@ -145,7 +148,7 @@ struct ContentView: View {
 
                             // Show CALL when chips are required; otherwise show CHECK.
                             Button(gameManager.amountToCall > 0 ? "CALL \(gameManager.amountToCall)" : "CHECK") {
-                                gameManager.playerAction(.check)
+                                gameManager.playerAction(gameManager.amountToCall > 0 ? .call : .check)
                             }
                             .buttonStyle(ActionButtonStyle(color: gameManager.amountToCall > 0 ? .green : .blue))
 
@@ -154,19 +157,21 @@ struct ContentView: View {
                                 gameManager.playerAction(.raise(amount: halfPot))
                             }
                             .buttonStyle(ActionButtonStyle(color: .orange))
+                            .disabled(!gameManager.canPlayerRaise)
 
                             Button("POT") {
                                 let fullPot = max(gameManager.potSize, 100)
                                 gameManager.playerAction(.raise(amount: fullPot))
                             }
                             .buttonStyle(ActionButtonStyle(color: .red))
+                            .disabled(!gameManager.canPlayerRaise)
 
                             Button("ALL-IN") {
                                 gameManager.playerAllIn()
                             }
                             .buttonStyle(ActionButtonStyle(color: .purple))
                         }
-                        .disabled(gameManager.isOpponentThinking)
+                        .disabled(!gameManager.canPlayerAct)
                     }
                 }
                 .padding()

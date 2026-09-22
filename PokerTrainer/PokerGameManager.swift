@@ -5,354 +5,290 @@
 //  Created by PARK, SEHO on 9/6/26.
 //
 
-import Foundation
-import SwiftUI
 import Combine
-
-enum GameStreet: Sendable {
-    case preFlop, flop, turn, river, showdown
-}
+import Foundation
 
 @MainActor
-class PokerGameManager: ObservableObject {
-    @Published var playerHand: [Card] = []
-    @Published var opponentHand: [Card] = []
-    @Published var communityCards: [Card] = []
+final class PokerGameManager: ObservableObject {
+    @Published private(set) var game = HeadsUpGameEngine()
+    @Published private(set) var opponentLevel: Int = 1
+    @Published private(set) var isOpponentThinking: Bool = false
+    @Published private(set) var gameMessage: String = "Preparing the game..."
+    @Published private(set) var myEquity: Double = 0.0
+    @Published private(set) var campaignWon: Bool = false
 
-    @Published var potSize: Int = 0
-    @Published var playerStack: Int = 1000
-    @Published var opponentStack: Int = 1000
+    private let maximumOpponentLevel = 4
+    private var handToken = UUID()
+    private var equityRequestToken = UUID()
+    private var opponentTurnToken = UUID()
+    private var equityTask: Task<Void, Never>?
+    private var opponentTask: Task<Void, Never>?
 
-    @Published var playerCurrentBet: Int = 0
-    @Published var opponentCurrentBet: Int = 0
+    var playerHand: [Card] { game.playerHand }
+    var opponentHand: [Card] { game.opponentHand }
+    var communityCards: [Card] { game.communityCards }
+    var potSize: Int { game.potSize }
+    var playerStack: Int { game.playerStack }
+    var opponentStack: Int { game.opponentStack }
+    var playerCurrentBet: Int { game.playerCurrentBet }
+    var opponentCurrentBet: Int { game.opponentCurrentBet }
+    var amountToCall: Int { game.playerAmountToCall }
+    var currentStreet: GameStreet { game.currentStreet }
+    var dealer: PokerSeat { game.dealer }
+    var currentActor: PokerSeat? { game.currentActor }
+    var shouldRevealOpponentCards: Bool { game.shouldRevealOpponentCards }
+    var isHandComplete: Bool { game.isHandComplete }
+    var canPlayerRaise: Bool { game.canPlayerRaise }
 
-    @Published var opponentLevel: Int = 1
-    @Published var currentStreet: GameStreet = .showdown
-    @Published var isOpponentThinking: Bool = false
-    @Published var gameMessage: String = "Preparing the game..."
-    @Published var myEquity: Double = 0.0
-
-    private var deck = Deck()
-    private let blindAmount: Int = 20
-
-    var amountToCall: Int {
-        return max(0, opponentCurrentBet - playerCurrentBet)
+    var canPlayerAct: Bool {
+        currentActor == .player && !isOpponentThinking && !isHandComplete
     }
 
-    var isAllIn: Bool {
-        return playerStack == 0 || opponentStack == 0
+    var nextHandButtonTitle: String {
+        if campaignWon {
+            return "START NEW CAMPAIGN ♠️"
+        }
+        if playerStack == 0 {
+            return "RESTART FROM LEVEL 1 ♠️"
+        }
+        if opponentStack == 0 {
+            return "FACE THE NEXT OPPONENT ♠️"
+        }
+        return "START NEXT HAND ♠️"
     }
 
     func startNewHand() {
-        if playerStack <= 0 {
-            resolveDepletedStack()
-            return
+        guard game.currentActor == nil else { return }
+
+        cancelPendingWork()
+
+        do {
+            try prepareCampaignForNextHand()
+            var nextGame = game
+            try nextGame.startHand()
+            game = nextGame
+
+            handToken = UUID()
+            gameMessage = game.lastMessage
+            myEquity = 0.0
+            updateEquity()
+            continueGameFlow()
+        } catch {
+            gameMessage = error.localizedDescription
         }
-        if opponentStack <= 0 {
-            resolveDepletedStack()
-            return
-        }
-
-        deck.reset()
-        communityCards.removeAll()
-
-        playerHand = [deck.draw()!, deck.draw()!]
-        opponentHand = [deck.draw()!, deck.draw()!]
-
-        let actualPlayerBlind = min(blindAmount, playerStack)
-        let actualOpponentBlind = min(blindAmount, opponentStack)
-
-        playerStack -= actualPlayerBlind
-        opponentStack -= actualOpponentBlind
-        potSize = actualPlayerBlind + actualOpponentBlind
-
-        playerCurrentBet = actualPlayerBlind
-        opponentCurrentBet = actualOpponentBlind
-
-        currentStreet = .preFlop
-        gameMessage = "Your turn — Level \(opponentLevel) opponent"
-
-        updateEquity()
-    }
-
-    func updateEquity() {
-        let pHand = playerHand
-        let cCards = communityCards
-
-        Task {
-            let eq = await Task.detached(priority: .userInitiated) {
-                EquityCalculator.calculateEquity(
-                    playerHand: pHand,
-                    communityCards: cCards,
-                    activePlayersCount: 2,
-                    simulations: 2000
-                )
-            }.value
-
-            self.myEquity = eq
-        }
-    }
-
-    // Commits the player's remaining stack and resolves the all-in sequence.
-    func playerAllIn() {
-        let playerAllInAmount = playerStack
-        playerStack = 0
-        potSize += playerAllInAmount
-        playerCurrentBet += playerAllInAmount
-
-        gameMessage = "You are all-in!"
-
-        // Match the wager with as much of the opponent's stack as available.
-        let opponentNeeded = playerCurrentBet - opponentCurrentBet
-        let opponentActualCall = min(opponentNeeded, opponentStack)
-        opponentStack -= opponentActualCall
-        potSize += opponentActualCall
-        opponentCurrentBet += opponentActualCall
-
-        // Reveal the remaining board and proceed directly to showdown.
-        proceedToNextOrShowdown()
     }
 
     func playerAction(_ action: PokerAction) {
-        switch action {
-        case .fold:
-            opponentStack += potSize
-            gameMessage = "You folded. The opponent wins \(potSize) chips."
-            endHand()
+        guard canPlayerAct else {
+            gameMessage = "Wait until it is your turn."
+            return
+        }
 
-        case .check, .call:
-            let callCost = amountToCall
-            if callCost > 0 {
-                let actualCall = min(callCost, playerStack)
-                playerStack -= actualCall
-                potSize += actualCall
-                playerCurrentBet += actualCall
-                gameMessage = "You called \(actualCall) chips."
-            } else {
-                gameMessage = "You checked."
-            }
+        apply(action, for: .player)
+    }
 
-            if isAllIn || playerCurrentBet == opponentCurrentBet {
-                proceedToNextOrShowdown()
-            } else {
-                triggerOpponentTurn()
-            }
+    func playerAllIn() {
+        playerAction(.allIn)
+    }
 
-        case .raise(let amount):
-            if playerStack == 0 {
-                playerAction(.check)
-                return
-            }
+    private func apply(_ action: PokerAction, for seat: PokerSeat) {
+        let previousCommunityCount = game.communityCards.count
 
-            let totalNeeded = amountToCall + amount
-            let actualAmount = min(totalNeeded, playerStack)
+        do {
+            var nextGame = game
+            try nextGame.perform(action, by: seat)
+            game = nextGame
+            gameMessage = game.lastMessage
+            processUpdatedGame(previousCommunityCount: previousCommunityCount)
+        } catch {
+            gameMessage = error.localizedDescription
+        }
+    }
 
-            playerStack -= actualAmount
-            potSize += actualAmount
-            playerCurrentBet += actualAmount
+    private func processUpdatedGame(previousCommunityCount: Int) {
+        if game.isHandComplete {
+            finishPresentedHand()
+            return
+        }
 
-            gameMessage = "You committed \(actualAmount) chips in a raise."
+        if game.communityCards.count != previousCommunityCount {
+            updateEquity()
+        }
+        continueGameFlow()
+    }
 
-            if isAllIn {
-                let opponentCallAmount = min(playerCurrentBet - opponentCurrentBet, opponentStack)
-                opponentStack -= opponentCallAmount
-                potSize += opponentCallAmount
-                opponentCurrentBet += opponentCallAmount
-                proceedToNextOrShowdown()
-            } else {
-                triggerOpponentTurn()
-            }
+    private func continueGameFlow() {
+        guard !game.isHandComplete else { return }
+
+        if game.currentActor == .opponent {
+            triggerOpponentTurn()
+        } else {
+            isOpponentThinking = false
         }
     }
 
     private func triggerOpponentTurn() {
+        guard game.currentActor == .opponent, !game.isHandComplete else { return }
+
+        opponentTask?.cancel()
+        let requestToken = UUID()
+        opponentTurnToken = requestToken
+        let expectedHandToken = handToken
+        let opponentHandSnapshot = game.opponentHand
+        let communitySnapshot = game.communityCards
+        let potSnapshot = game.potSize
+        let callAmountSnapshot = game.amountToCall(for: .opponent)
+        let levelSnapshot = opponentLevel
+
         isOpponentThinking = true
-        gameMessage = "Opponent is calculating..."
+        gameMessage = "The opponent is calculating..."
 
-        let opponentHandSnapshot = opponentHand
-        let cCards = communityCards
-        let pSize = potSize
-        let level = opponentLevel
-        let opponentCallAmount = max(0, playerCurrentBet - opponentCurrentBet)
-
-        if playerStack == 0 {
-            Task {
-                let opponentEquity = await Task.detached(priority: .userInitiated) {
-                    EquityCalculator.calculateEquity(playerHand: opponentHandSnapshot, communityCards: cCards, activePlayersCount: 2, simulations: 2000)
-                }.value
-
-                await MainActor.run {
-                    self.isOpponentThinking = false
-                    if opponentEquity > 15.0 || self.opponentStack <= opponentCallAmount {
-                        let actualCall = min(opponentCallAmount, self.opponentStack)
-                        self.opponentStack -= actualCall
-                        self.potSize += actualCall
-                        self.opponentCurrentBet += actualCall
-                        self.gameMessage = "The opponent called your all-in."
-                    } else {
-                        self.playerStack += self.potSize
-                        self.gameMessage = "The opponent folded to your all-in."
-                    }
-                    self.proceedToNextOrShowdown()
-                }
-            }
-            return
-        }
-
-        Task {
+        opponentTask = Task { [weak self] in
             let opponentEquity = await Task.detached(priority: .userInitiated) {
                 EquityCalculator.calculateEquity(
                     playerHand: opponentHandSnapshot,
-                    communityCards: cCards,
+                    communityCards: communitySnapshot,
                     activePlayersCount: 2,
-                    simulations: 2000
+                    simulations: 2_000
                 )
             }.value
 
-            let (decision, _) = await EquityCalculator.makeOpponentDecision(
-                equity: opponentEquity,
-                potSize: pSize,
-                callAmount: opponentCallAmount,
-                difficultyLevel: level
-            )
+            guard !Task.isCancelled else { return }
 
-            await MainActor.run {
-                self.isOpponentThinking = false
-                let effectiveDecision = (self.opponentStack == 0) ? .call : decision
-
-                switch effectiveDecision {
-                case .fold:
-                    self.playerStack += self.potSize
-                    self.gameMessage = "The opponent folds. You win \(self.potSize) chips!"
-                    self.endHand()
-
-                case .check, .call:
-                    if opponentCallAmount > 0 {
-                        let actualCall = min(opponentCallAmount, self.opponentStack)
-                        self.opponentStack -= actualCall
-                        self.potSize += actualCall
-                        self.opponentCurrentBet += actualCall
-                        self.gameMessage = "The opponent called \(actualCall) chips."
-                    } else {
-                        self.gameMessage = "The opponent checked."
-                    }
-                    self.proceedToNextOrShowdown()
-
-                case .raise:
-                    if self.opponentStack == 0 {
-                        self.proceedToNextOrShowdown()
-                        return
-                    }
-                    let opponentRaiseAmount = max(opponentCallAmount + 40, Int(Double(self.potSize) * 0.5))
-                    let actualAmount = min(opponentRaiseAmount, self.opponentStack)
-
-                    self.opponentStack -= actualAmount
-                    self.potSize += actualAmount
-                    self.opponentCurrentBet += actualAmount
-
-                    self.gameMessage = "The opponent committed \(actualAmount) chips in a raise."
-                    if self.isAllIn {
-                        self.proceedToNextOrShowdown()
-                    }
-                }
+            let decision: PokerAction
+            do {
+                decision = try await EquityCalculator.makeOpponentDecision(
+                    equity: opponentEquity,
+                    potSize: potSnapshot,
+                    callAmount: callAmountSnapshot,
+                    difficultyLevel: levelSnapshot
+                ).action
+            } catch {
+                return
             }
-        }
-    }
 
-    private func proceedToNextOrShowdown() {
-        if isAllIn {
-            while currentStreet != .river && currentStreet != .showdown {
-                advanceStreetOnly()
+            guard !Task.isCancelled,
+                  let self,
+                  self.handToken == expectedHandToken,
+                  self.opponentTurnToken == requestToken,
+                  self.game.currentActor == .opponent,
+                  !self.game.isHandComplete else {
+                return
             }
-            currentStreet = .showdown
-            evaluateShowdown()
-        } else {
-            nextStreet()
+
+            self.isOpponentThinking = false
+            self.applyOpponentDecision(decision)
         }
     }
 
-    private func advanceStreetOnly() {
-        switch currentStreet {
-        case .preFlop:
-            communityCards = [deck.draw()!, deck.draw()!, deck.draw()!]
-            currentStreet = .flop
-        case .flop:
-            communityCards.append(deck.draw()!)
-            currentStreet = .turn
-        case .turn:
-            communityCards.append(deck.draw()!)
-            currentStreet = .river
-        default:
-            break
-        }
-    }
+    private func applyOpponentDecision(_ decision: PokerAction) {
+        let previousCommunityCount = game.communityCards.count
+        var nextGame = game
 
-    private func nextStreet() {
-        playerCurrentBet = 0
-        opponentCurrentBet = 0
-
-        switch currentStreet {
-        case .preFlop:
-            communityCards = [deck.draw()!, deck.draw()!, deck.draw()!]
-            currentStreet = .flop
-        case .flop:
-            communityCards.append(deck.draw()!)
-            currentStreet = .turn
-        case .turn:
-            communityCards.append(deck.draw()!)
-            currentStreet = .river
-        case .river:
-            evaluateShowdown()
-            return
-        case .showdown:
-            break
-        }
-        updateEquity()
-    }
-
-    private func evaluateShowdown() {
-        while communityCards.count < 5 {
-            if let card = deck.draw() {
-                communityCards.append(card)
+        do {
+            try nextGame.perform(decision, by: .opponent)
+        } catch {
+            let fallback: PokerAction = nextGame.amountToCall(for: .opponent) > 0 ? .call : .check
+            do {
+                try nextGame.perform(fallback, by: .opponent)
+            } catch {
+                gameMessage = error.localizedDescription
+                return
             }
         }
 
-        let myScore = Evaluator.evaluate(cards: playerHand + communityCards)
-        let opponentScore = Evaluator.evaluate(cards: opponentHand + communityCards)
+        game = nextGame
+        gameMessage = game.lastMessage
+        processUpdatedGame(previousCommunityCount: previousCommunityCount)
+    }
 
-        if myScore > opponentScore {
-            playerStack += potSize
-            gameMessage = "You win the showdown! (\(myScore.rank.displayName))"
-        } else if opponentScore > myScore {
-            opponentStack += potSize
-            gameMessage = "The opponent wins the showdown. (\(opponentScore.rank.displayName))"
-        } else {
-            let halfPot = potSize / 2
-            playerStack += halfPot
-            opponentStack += (potSize - halfPot)
-            gameMessage = "Split pot! The pot was divided equally."
+    private func updateEquity() {
+        equityTask?.cancel()
+
+        guard game.playerHand.count == 2, !game.isHandComplete else { return }
+
+        let requestToken = UUID()
+        equityRequestToken = requestToken
+        let expectedHandToken = handToken
+        let playerHandSnapshot = game.playerHand
+        let communitySnapshot = game.communityCards
+
+        equityTask = Task { [weak self] in
+            let equity = await Task.detached(priority: .userInitiated) {
+                EquityCalculator.calculateEquity(
+                    playerHand: playerHandSnapshot,
+                    communityCards: communitySnapshot,
+                    activePlayersCount: 2,
+                    simulations: 2_000
+                )
+            }.value
+
+            guard !Task.isCancelled,
+                  let self,
+                  self.handToken == expectedHandToken,
+                  self.equityRequestToken == requestToken,
+                  self.game.playerHand == playerHandSnapshot,
+                  self.game.communityCards == communitySnapshot else {
+                return
+            }
+
+            self.myEquity = equity
         }
-        endHand()
     }
 
-    private func endHand() {
-        currentStreet = .showdown
-        playerCurrentBet = 0
-        opponentCurrentBet = 0
-        potSize = 0
-        resolveDepletedStack()
+    private func finishPresentedHand() {
+        opponentTask?.cancel()
+        equityTask?.cancel()
+        isOpponentThinking = false
+
+        if let outcome = game.handOutcome, outcome.reason == .showdown {
+            if outcome.winner == .player {
+                myEquity = 100.0
+            } else if outcome.winner == .opponent {
+                myEquity = 0.0
+            } else {
+                myEquity = 50.0
+            }
+        }
+
+        if opponentStack == 0 {
+            if opponentLevel >= maximumOpponentLevel {
+                campaignWon = true
+                gameMessage += " Championship complete — you defeated every opponent!"
+            } else {
+                gameMessage += " Level \(opponentLevel + 1) is now unlocked."
+            }
+        } else if playerStack == 0 {
+            gameMessage += " Your chip stack is empty."
+        }
     }
 
-    private func resolveDepletedStack() {
-        if opponentStack <= 0 {
-            opponentLevel = min(4, opponentLevel + 1)
-            gameMessage = "🎉 Opponent defeated! Advanced to Level \(opponentLevel)."
-            opponentStack = 1000 * opponentLevel
-        } else if playerStack <= 0 {
+    private func prepareCampaignForNextHand() throws {
+        var nextGame = game
+
+        if campaignWon {
             opponentLevel = 1
-            gameMessage = "💀 Chip stack depleted. Restarting from Level 1."
-            playerStack = 1000
-            opponentStack = 1000
+            campaignWon = false
+            try nextGame.replaceStacks(player: 1_000, opponent: 1_000)
+        } else if nextGame.playerStack == 0 {
+            opponentLevel = 1
+            try nextGame.replaceStacks(player: 1_000, opponent: 1_000)
+        } else if nextGame.opponentStack == 0 {
+            opponentLevel = min(maximumOpponentLevel, opponentLevel + 1)
+            try nextGame.replaceStacks(
+                player: nextGame.playerStack,
+                opponent: 1_000 * opponentLevel
+            )
         }
+
+        game = nextGame
+    }
+
+    private func cancelPendingWork() {
+        opponentTask?.cancel()
+        equityTask?.cancel()
+        opponentTurnToken = UUID()
+        equityRequestToken = UUID()
+        isOpponentThinking = false
     }
 }

@@ -2,15 +2,17 @@
 
 The roadmap prioritises correctness before visual polish. Each phase should be completed and tested before the next one begins.
 
-## Phase 1 — Correct heads-up rules
+## Phase 1 — Correct heads-up rules ✅
 
-- Create an explicit turn and betting-round state machine
-- Add dealer, small blind, and big blind positions
-- Validate legal checks, calls, raises, folds, and all-ins
-- Return unmatched chips correctly
-- Count split-pot equity fractionally
-- Keep fold and showdown results separate
-- Add a permanent unit-test target
+Completed on 22 September 2026 with an iPhone simulator build and 19 passing core tests.
+
+- [x] Create an explicit turn and betting-round state machine
+- [x] Add dealer, small blind, and big blind positions
+- [x] Validate legal checks, calls, raises, folds, and all-ins
+- [x] Return unmatched chips correctly
+- [x] Count split-pot equity fractionally
+- [x] Keep fold and showdown results separate
+- [x] Add a permanent unit-test target
 
 **Done when:** every tested hand preserves all cards and chips, every required player acts, and no illegal action reaches the game state.
 

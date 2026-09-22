@@ -10,21 +10,24 @@ PokerTrainer is a personal SwiftUI project in which the player competes against 
 
 ## Current status
 
-The repository contains a working heads-up prototype. It can deal cards, accept player actions, reveal the board, estimate equity, compare final hands, settle the pot, and advance through opponent levels.
+The repository contains a tested heads-up prototype. It deals cards, validates player actions, estimates equity, compares final hands, settles chips, alternates positions, and advances through four opponent levels.
 
-The project is under active redesign. A technical review found several betting, all-in, tie-equity, and asynchronous-state issues that must be corrected before adding three-player gameplay and presentation effects. These findings are documented openly rather than hidden behind the prototype.
+The first technical review found important betting, all-in, tie-equity, hidden-card, and asynchronous-state problems. Phase 1 replaced the original flow with a deterministic heads-up engine and added an automated regression suite before any three-player or animation work.
 
 ## Current features
 
 - Native iPhone interface built with SwiftUI
 - Shuffled 52-card deck
 - Heads-up Texas Hold'em flow
+- Alternating dealer, small-blind, and big-blind positions
 - Check, call, raise, fold, and all-in controls
 - Best-five-of-seven hand evaluation
 - Ace-low straight and kicker comparison
 - Monte Carlo equity estimation
 - Rule-based computer opponent with four levels
 - Chip stacks, pot settlement, and level progression
+- Championship completion and campaign restart
+- Automated engine, evaluator, and equity tests
 - No network or third-party dependency
 
 ## How the computer opponent works
@@ -69,7 +72,10 @@ PokerTrainerApp
 ContentView ───────────── SwiftUI interface and player input
       │
       ▼
-PokerGameManager ──────── Current game state and prototype flow
+PokerGameManager ──────── UI coordination and cancellable background work
+      ├── HeadsUpGameEngine
+      │     ├── Turn order, positions, and legal actions
+      │     └── Chips, pot settlement, and hand outcomes
       ├── Deck ────────── Card creation, shuffling, and dealing
       ├── Evaluator ───── Hand ranking and tie-breakers
       └── EquityCalculator
@@ -77,20 +83,28 @@ PokerGameManager ──────── Current game state and prototype flow
             └── Rule-based opponent decision
 ```
 
-The next architecture will separate a deterministic poker engine from opponent decisions, persistence, and animation. The engine will decide what happened; SwiftUI will only present and animate validated state transitions.
+The deterministic engine decides what happened. The manager coordinates computer decisions and cancellable calculations, while SwiftUI presents validated state transitions. Persistence and animation remain separate future layers.
 
-## Verified prototype issues
+## Phase 1 corrections
 
-| Area | Finding |
+| Original finding | Implemented correction |
 |---|---|
-| Turn order | A player check can advance the street before the opponent acts |
-| All-in flow | A player or opponent response can be skipped |
-| Pot settlement | Unmatched chips and future side pots are not handled correctly |
-| Equity | A tied board currently receives full-win credit instead of split credit |
-| Concurrency | Older simulations can finish after and overwrite newer results |
-| Hidden information | A fold can be represented as showdown and reveal the opponent's cards |
+| A check could skip the opponent | Each betting round now records which seats have acted |
+| An all-in response could be skipped | Unequal bets keep the responding player active |
+| Unmatched chips could remain in the pot | Heads-up wagers are capped to the effective stack and excess chips are returned |
+| Ties received full-win equity | Tied simulations now award fractional equity |
+| An older calculation could overwrite a new one | Hand and request tokens reject stale results |
+| A fold could reveal hidden cards | Fold and showdown outcomes are represented separately |
 
-The first implementation phase focuses on these correctness problems and permanent automated tests.
+The Swift Package test target currently contains 19 regression tests, including 100 scripted hands that verify chip conservation after every action. This does not prove that the app is bug-free, but it gives the core rules a repeatable safety net.
+
+## Current limitations
+
+- The table supports heads-up play only; three-player side pots are Phase 2 work.
+- Saved games and Continue Game are not implemented yet.
+- The computer policy remains equity- and pot-odds-based rather than range-aware.
+- Card and chip animations, sound, haptics, and accessibility polish remain planned.
+- Physical-device and long-session validation are still required before release.
 
 ## Product direction
 
@@ -113,19 +127,25 @@ See the concise [Roadmap](docs/ROADMAP.md) and [Development Log](docs/DEVELOPMEN
 ```text
 PokerTrainer/
 ├── README.md
+├── Package.swift
 ├── docs/
 │   ├── PORTFOLIO.md
 │   ├── DEVELOPMENT_LOG.md
 │   └── ROADMAP.md
 ├── PokerTrainer.xcodeproj/
-└── PokerTrainer/
+├── PokerTrainer/
     ├── PokerTrainerApp.swift
     ├── ContentView.swift
     ├── PokerGameManager.swift
+    ├── PokerGameEngine.swift
     ├── Card.swift
     ├── Evaluator.swift
     ├── EquityCalculator.swift
     └── Assets.xcassets/
+└── PokerTrainerTests/
+    ├── PokerGameEngineTests.swift
+    ├── EvaluatorTests.swift
+    └── EquityCalculatorTests.swift
 ```
 
 ## Running the project
@@ -136,6 +156,12 @@ PokerTrainer/
 4. Choose an iPhone simulator or connected iPhone.
 5. Select your development team if physical-device signing is required.
 6. Build and run.
+
+To run the core regression suite from Terminal:
+
+```bash
+swift test
+```
 
 The project currently targets iOS 26.5 and uses automatic signing with the bundle identifier `com.sehopark.PokerTrainer`.
 
@@ -159,4 +185,3 @@ The project currently targets iOS 26.5 and uses automatic signing with the bundl
 
 **PARK, SEHO**  
 Independent developer and project designer
-

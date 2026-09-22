@@ -48,7 +48,20 @@ These findings changed the next priority from visual expansion to a tested poker
 - Replaced real-money presentation with poker-chip terminology
 - Added concise GitHub, portfolio, development, and roadmap documents
 
+## Stage 7 — Heads-up engine stabilisation
+
+- Separated deterministic poker rules from SwiftUI and computer decisions
+- Added alternating dealer, small-blind, and big-blind positions
+- Required both players to act before a betting round can close
+- Preserved call-or-fold responses to all-in wagers
+- Capped wagers to effective stacks and returned unmatched chips
+- Counted tied simulations as fractional equity
+- Separated fold outcomes from showdowns to protect hidden cards
+- Cancelled or rejected stale equity and opponent-decision results
+- Added 19 automated tests, including 100 scripted chip-conservation hands
+
+The iPhone simulator build and the complete core test suite pass after this stage.
+
 ## Next stage
 
-Build and test the deterministic heads-up engine before introducing three-player rules, persistence, stronger opponents, or animation.
-
+Perform physical-device and interaction testing, then generalise the engine for three-player action order, main pots, and side pots before adding persistence or animation.
