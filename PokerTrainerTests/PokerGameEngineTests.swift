@@ -150,6 +150,20 @@ final class PokerGameEngineTests: XCTestCase {
         XCTAssertEqual(game.totalChipCount, 2_000)
     }
 
+    func testUncalledAllInIsRefundedBeforeFoldPotIsReported() throws {
+        var game = HeadsUpGameEngine()
+        try game.startHand()
+        try game.perform(.allIn, by: .player)
+        try game.perform(.fold, by: .opponent)
+
+        XCTAssertEqual(game.handOutcome?.reason, .fold)
+        XCTAssertEqual(game.handOutcome?.awardedPot, 40)
+        XCTAssertEqual(game.playerStack, 1_020)
+        XCTAssertEqual(game.opponentStack, 980)
+        XCTAssertTrue(game.lastMessage.contains("40 chips"))
+        XCTAssertEqual(game.totalChipCount, 2_000)
+    }
+
     func testIllegalCheckDoesNotMutateTheGame() throws {
         var game = HeadsUpGameEngine(firstDealer: .player)
         try game.startHand()

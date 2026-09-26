@@ -7,6 +7,12 @@
 
 import Foundation
 
+nonisolated struct EquitySituation: Hashable, Sendable {
+    let hand: [Card]
+    let communityCards: [Card]
+    let activePlayersCount: Int
+}
+
 nonisolated final class EquityCalculator {
 
     nonisolated static func calculateEquity(
@@ -76,49 +82,4 @@ nonisolated final class EquityCalculator {
         return (equityShare / Double(completedSimulations)) * 100.0
     }
 
-    nonisolated static func makeOpponentDecision(
-        equity: Double,
-        potSize: Int,
-        callAmount: Int,
-        difficultyLevel: Int,
-        maximumDelaySeconds: Double = 4.5
-    ) async throws -> (action: PokerAction, delaySeconds: Double) {
-
-        let noiseFactor: Double
-        switch difficultyLevel {
-        case 1: noiseFactor = 0.35
-        case 2: noiseFactor = 0.20
-        case 3: noiseFactor = 0.08
-        default: noiseFactor = 0.0
-        }
-
-        let totalPot = potSize + callAmount
-        let requiredOdds = totalPot > 0 ? (Double(callAmount) / Double(totalPot)) * 100.0 : 0.0
-
-        var delay = Double.random(in: 1.0...2.5)
-        let isBluffing = Double.random(in: 0...1) < noiseFactor
-        var decision: PokerAction
-
-        if isBluffing {
-            if equity < 40.0 {
-                decision = .raise(amount: potSize / 2)
-                delay = Double.random(in: 3.0...4.5)
-            } else {
-                decision = callAmount == 0 ? .check : .call
-                delay = 0.3
-            }
-        } else {
-            if equity < requiredOdds {
-                decision = callAmount == 0 ? .check : .fold
-            } else if equity > 70.0 {
-                decision = .raise(amount: potSize)
-            } else {
-                decision = callAmount == 0 ? .check : .call
-            }
-        }
-
-        delay = min(delay, max(0, maximumDelaySeconds))
-        try await Task.sleep(for: .seconds(delay))
-        return (decision, delay)
-    }
 }

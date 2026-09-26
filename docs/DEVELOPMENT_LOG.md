@@ -1,104 +1,17 @@
 # PokerTrainer — Development Log
 
-This log summarises the project by development stage rather than recording every code edit.
+This is a concise record of major decisions and verification, not a claim that every planned feature is finished.
 
-## Stage 1 — Product concept
+1. **Concept and prototype.** Built an offline SwiftUI Hold'em game for solo practice and short play sessions. Replaced real-money language and “GTO AI” claims with chips and an honest description of a probabilistic, rule-based opponent.
+2. **Core review.** Reproduced skipped betting responses, all-in and unmatched-chip errors, overstated tie equity, folded-card disclosure, and stale asynchronous calculations.
+3. **Heads-up stabilization.** Moved betting and settlement into a deterministic engine. Added turn, card, chip, and save-state invariants with regression tests.
+4. **Three-seat table.** Added circular action order, dealer/blind rotation, main and side pots, short-all-in rules, and two independently acting computer opponents.
+5. **Local continuation.** Added separate atomic, versioned saves for both tables. A loaded game is checked before restoring cards, deck, actor, chips, and campaign progress.
+6. **Difficulty and campaigns.** Added a context-aware opponent policy, distinct playing personalities, and four-level progression in both modes. The three-seat engine can continue with two active seats after an elimination.
+7. **Extended hands-on validation.** Won the 1 vs 1 championship on an iPhone 17 Simulator. Played the 1 vs 2 table through Level 2 and into Level 3, including all-ins, folds, showdowns, elimination, two-seat continuation, save/relaunch, and app updates. This play revealed rebuy and fold-pot-display defects, which were corrected and given regression tests. A full random-deal 1 vs 2 Simulator victory remains open.
+8. **Pacing review.** A long 1 vs 2 run reached hand 153 while still at Level 2 with fixed 10/20 blinds. Blinds now scale by level (10/20, 20/40, 40/80, 80/160), beginning at the next hand for an existing save.
+9. **Live-equity correction.** Direct play found that the previous street's equity could remain visible while the next street was being calculated. Both tables now show a calculation state until the new estimate is ready; the three-seat table also recalculates when a fold changes the number of active players.
+10. **Tournament pacing.** Within each 1 vs 2 level, blinds double after 12 and 24 completed hands, then stay capped. Older campaign saves start the new blind clock at zero; their current hand and chips remain intact.
+11. **Shared-session boundary.** A later interactive Simulator session visibly reached Level 4. Because another person was operating that same Simulator during the final segment, that result is not treated as a controlled solo playthrough or a verified 1 vs 2 championship.
 
-Defined an offline iPhone poker game for casual play and solo practice. The original objective was to defeat progressively more difficult computer opponents without requiring Wi-Fi or another player.
-
-## Stage 2 — Card and hand model
-
-- Created card, suit, and shuffled-deck types
-- Implemented standard poker-hand categories
-- Added kicker comparison and ace-low straight handling
-- Evaluated every five-card combination from seven cards
-
-## Stage 3 — Equity estimation
-
-- Added Monte Carlo completion of unknown cards
-- Compared simulated final hands
-- Moved repeated calculation away from the main UI work
-- Chose a probabilistic method because it required no training dataset or remote service
-
-## Stage 4 — Playable SwiftUI prototype
-
-- Added chip stacks, pot, private cards, and community cards
-- Added check, call, raise, fold, and all-in controls
-- Added a rule-based opponent using equity, pot odds, and level-based randomness
-- Added level progression and showdown settlement
-
-## Stage 5 — Technical review
-
-Verified that the app builds and that the core deck and hand evaluator work. Reproduced important prototype defects:
-
-- Check can skip the opponent's action
-- All-in responses can be skipped
-- Unmatched chips can enter the pot
-- Split-pot equity is overstated
-- Older background calculations can overwrite newer results
-- Folded hands can reveal hidden cards
-
-These findings changed the next priority from visual expansion to a tested poker state machine.
-
-## Stage 6 — Naming and documentation
-
-- Renamed the product to `PokerTrainer`
-- Removed AI and GTO claims from the public description
-- Described the opponent as rule-based and equity-informed
-- Replaced real-money presentation with poker-chip terminology
-- Added concise GitHub, portfolio, development, and roadmap documents
-
-## Stage 7 — Heads-up engine stabilisation
-
-- Separated deterministic poker rules from SwiftUI and computer decisions
-- Added alternating dealer, small-blind, and big-blind positions
-- Required both players to act before a betting round can close
-- Preserved call-or-fold responses to all-in wagers
-- Capped wagers to effective stacks and returned unmatched chips
-- Counted tied simulations as fractional equity
-- Separated fold outcomes from showdowns to protect hidden cards
-- Cancelled or rejected stale equity and opponent-decision results
-- Added 19 automated tests, including 100 scripted chip-conservation hands
-
-The iPhone simulator build and the complete core test suite pass after this stage.
-
-## Stage 8 — Three-player core engine
-
-- Added three rotating seats with dealer, small-blind, and big-blind positions
-- Added circular action order that skips folded and all-in seats
-- Tracked per-seat street bets and total hand contributions
-- Built main pots and side pots from contribution levels
-- Excluded folded seats from pot eligibility
-- Returned a single contributor's unmatched top layer
-- Enforced full-raise and short-all-in reopening rules
-- Added nine three-player tests, including 60 scripted chip-conservation hands
-- Re-ran the playable heads-up app in an iPhone 17 Pro Simulator
-
-The complete suite now contains 28 passing tests. The existing heads-up interface remains unchanged while the three-player core is validated independently.
-
-## Stage 9 — Playable three-player table
-
-- Added a start screen for choosing the heads-up or one-versus-two table
-- Connected the three-seat engine to its own SwiftUI table and game manager
-- Coordinated two sequential computer turns with cancellable equity calculations
-- Kept computer cards hidden after folds and revealed live hands at showdown
-- Added a practice-table rebuy for eliminated computer seats and a restart when the player loses all chips
-- Verified the call, raise, fold, all-in, showdown, next-hand, and restart flows in an iPhone 17 Pro Simulator
-
-The three-player table is now playable offline. Core rules remain covered by 28 automated tests; physical-device and long-session testing are still outstanding.
-
-## Stage 10 — Local save and continue
-
-- Added separate versioned saves for the heads-up and three-player tables
-- Saved after each valid player or computer action and each new hand
-- Restored the remaining deck, private and community cards, chip stacks, betting state, and current actor
-- Validated chip and card invariants before loading a snapshot
-- Added Continue and New Game choices, with confirmation before replacing existing progress
-- Added eight regression tests for restoration, independent modes, and invalid files
-- Force-closed and reopened both modes in an iPhone 17 Pro Simulator to check the visible game state
-
-The suite now contains 36 passing tests. Save files remain on the device and are removed if the app is uninstalled.
-
-## Next stage
-
-Improve the computer opponents with position-aware starting ranges, board context, and measured difficulty differences. Then add card and chip animations without changing the tested rules state.
+**Current automated verification:** 60 passing core tests and a successful iOS Simulator build. Scripted tests reach the championship in both modes; they complement but do not replace full touchscreen play, physical-device checks, or battery profiling.

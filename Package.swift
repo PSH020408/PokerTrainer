@@ -30,6 +30,8 @@ let package = Package(
             sources: [
                 "Card.swift",
                 "EquityCalculator.swift",
+                "OpponentStrategy.swift",
+                "ThreePlayerCampaign.swift",
                 "Evaluator.swift",
                 "LocalGameStore.swift",
                 "MultiplayerPokerEngine.swift",

@@ -14,7 +14,7 @@ final class PokerGameManager: ObservableObject {
     @Published private(set) var opponentLevel: Int = 1
     @Published private(set) var isOpponentThinking: Bool = false
     @Published private(set) var gameMessage: String = "Preparing the game..."
-    @Published private(set) var myEquity: Double = 0.0
+    @Published private(set) var myEquity: Double?
     @Published private(set) var campaignWon: Bool = false
     @Published private(set) var saveWarning: String?
 
@@ -26,6 +26,7 @@ final class PokerGameManager: ObservableObject {
     private var opponentTurnToken = UUID()
     private var equityTask: Task<Void, Never>?
     private var opponentTask: Task<Void, Never>?
+    private var opponentEquityCache: [EquitySituation: Double] = [:]
 
     init(restoring session: HeadsUpSession? = nil, store: LocalGameStore = .shared) {
         self.store = store
@@ -41,6 +42,7 @@ final class PokerGameManager: ObservableObject {
     var opponentHand: [Card] { game.opponentHand }
     var communityCards: [Card] { game.communityCards }
     var potSize: Int { game.potSize }
+    var displayedPotSize: Int { game.handOutcome?.awardedPot ?? game.potSize }
     var playerStack: Int { game.playerStack }
     var opponentStack: Int { game.opponentStack }
     var playerCurrentBet: Int { game.playerCurrentBet }
@@ -111,12 +113,13 @@ final class PokerGameManager: ObservableObject {
 
             try nextGame.startHand()
             game = nextGame
+            opponentEquityCache.removeAll(keepingCapacity: true)
             opponentLevel = nextLevel
             campaignWon = nextCampaignWon
 
             handToken = UUID()
             gameMessage = game.lastMessage
-            myEquity = 0.0
+            myEquity = nil
             updateEquity()
             continueGameFlow()
             persist()
@@ -184,33 +187,57 @@ final class PokerGameManager: ObservableObject {
         let expectedHandToken = handToken
         let opponentHandSnapshot = game.opponentHand
         let communitySnapshot = game.communityCards
-        let potSnapshot = game.potSize
-        let callAmountSnapshot = game.amountToCall(for: .opponent)
-        let levelSnapshot = opponentLevel
+        let situation = EquitySituation(
+            hand: opponentHandSnapshot,
+            communityCards: communitySnapshot,
+            activePlayersCount: 2
+        )
+        let cachedEquity = opponentEquityCache[situation]
+        let context = OpponentDecisionContext(
+            holeCards: opponentHandSnapshot,
+            communityCards: communitySnapshot,
+            equity: 0,
+            potSize: game.potSize,
+            amountToCall: game.amountToCall(for: .opponent),
+            minimumRaise: game.minimumRaiseAmount,
+            maximumRaise: game.maximumRaiseAmount(for: .opponent),
+            canRaise: game.canRaise(seat: .opponent),
+            isInPosition: game.dealer == .opponent,
+            activePlayers: 2,
+            level: opponentLevel,
+            randomRoll: Double.random(in: 0..<1)
+        )
 
         isOpponentThinking = true
         gameMessage = "The opponent is calculating..."
 
         opponentTask = Task { [weak self] in
-            let opponentEquity = await Task.detached(priority: .userInitiated) {
-                EquityCalculator.calculateEquity(
-                    playerHand: opponentHandSnapshot,
-                    communityCards: communitySnapshot,
-                    activePlayersCount: 2,
-                    simulations: 2_000
-                )
-            }.value
+            let opponentEquity: Double
+            if let cachedEquity {
+                opponentEquity = cachedEquity
+            } else {
+                let calculation = Task.detached(priority: .userInitiated) {
+                    EquityCalculator.calculateEquity(
+                        playerHand: opponentHandSnapshot,
+                        communityCards: communitySnapshot,
+                        activePlayersCount: 2,
+                        simulations: 1_200
+                    )
+                }
+                opponentEquity = await withTaskCancellationHandler {
+                    await calculation.value
+                } onCancel: {
+                    calculation.cancel()
+                }
+            }
 
             guard !Task.isCancelled else { return }
 
-            let decision: PokerAction
+            var pricedContext = context
+            pricedContext.equity = opponentEquity
+            let decision = OpponentStrategy.decide(pricedContext)
             do {
-                decision = try await EquityCalculator.makeOpponentDecision(
-                    equity: opponentEquity,
-                    potSize: potSnapshot,
-                    callAmount: callAmountSnapshot,
-                    difficultyLevel: levelSnapshot
-                ).action
+                try await Task.sleep(for: .milliseconds(250))
             } catch {
                 return
             }
@@ -224,6 +251,9 @@ final class PokerGameManager: ObservableObject {
                 return
             }
 
+            if cachedEquity == nil {
+                self.opponentEquityCache[situation] = opponentEquity
+            }
             self.isOpponentThinking = false
             self.applyOpponentDecision(decision)
         }
@@ -253,6 +283,7 @@ final class PokerGameManager: ObservableObject {
 
     private func updateEquity() {
         equityTask?.cancel()
+        myEquity = nil
 
         guard game.playerHand.count == 2, !game.isHandComplete else { return }
 
@@ -263,14 +294,19 @@ final class PokerGameManager: ObservableObject {
         let communitySnapshot = game.communityCards
 
         equityTask = Task { [weak self] in
-            let equity = await Task.detached(priority: .userInitiated) {
+            let calculation = Task.detached(priority: .userInitiated) {
                 EquityCalculator.calculateEquity(
                     playerHand: playerHandSnapshot,
                     communityCards: communitySnapshot,
                     activePlayersCount: 2,
                     simulations: 2_000
                 )
-            }.value
+            }
+            let equity = await withTaskCancellationHandler {
+                await calculation.value
+            } onCancel: {
+                calculation.cancel()
+            }
 
             guard !Task.isCancelled,
                   let self,

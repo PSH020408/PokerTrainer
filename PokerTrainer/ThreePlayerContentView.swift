@@ -48,7 +48,7 @@ struct ThreePlayerTableView: View {
                 Text("PokerTrainer")
                     .font(.headline)
                     .foregroundColor(.white)
-                Text("1 vs 2 · Level \(gameManager.opponentLevel) practice")
+                Text("1 vs 2 · Level \(gameManager.opponentLevel)/4 · Defeated \(gameManager.defeatedCount)/2")
                     .font(.caption)
                     .foregroundColor(.yellow)
             }
@@ -80,12 +80,18 @@ struct ThreePlayerTableView: View {
             .font(.caption.bold())
             .foregroundColor(.white)
 
-            Text("\(player.stack) chips · \(positionLabel(for: seat))")
+            Text(player.hand.isEmpty && gameManager.game.handNumber > 0
+                 ? "\(player.stack) chips"
+                 : "\(player.stack) chips · \(positionLabel(for: seat))")
                 .font(.caption2)
                 .foregroundColor(.white.opacity(0.8))
 
             HStack(spacing: 4) {
-                if gameManager.shouldRevealCards(for: seat) {
+                if player.hand.isEmpty {
+                    Text("OUT")
+                        .font(.caption.bold())
+                        .foregroundColor(.white.opacity(0.7))
+                } else if gameManager.shouldRevealCards(for: seat) {
                     ForEach(player.hand, id: \.description) { card in
                         CardView(card: card)
                     }
@@ -95,7 +101,9 @@ struct ThreePlayerTableView: View {
                 }
             }
 
-            Text(player.isFolded ? "FOLDED" : player.isAllIn ? "ALL-IN" : "Bet: \(player.currentBet)")
+            Text(player.hand.isEmpty ? "ELIMINATED" :
+                player.isFolded ? "FOLDED" :
+                player.isAllIn ? "ALL-IN" : "Bet: \(player.currentBet)")
                 .font(.caption2.bold())
                 .foregroundColor(player.isFolded ? .gray : .yellow)
         }
@@ -131,7 +139,6 @@ struct ThreePlayerTableView: View {
                     }
                 }
             }
-            .accessibilityLabel("Community cards")
         }
     }
 
@@ -156,9 +163,15 @@ struct ThreePlayerTableView: View {
                 Spacer()
                 if !gameManager.isHandComplete,
                    !gameManager.state(for: .player).isFolded {
-                    Text("Estimated equity \(String(format: "%.1f", gameManager.myEquity))%")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.85))
+                    if let equity = gameManager.myEquity {
+                        Text("Random-hand equity \(String(format: "%.1f", equity))%")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.85))
+                    } else {
+                        Text("Calculating equity...")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
                 }
             }
 
@@ -244,6 +257,9 @@ struct ThreePlayerTableView: View {
     }
 
     private func positionLabel(for seat: TableSeat) -> String {
+        if gameManager.dealer == seat && gameManager.game.smallBlindSeat == seat {
+            return "D / SB"
+        }
         if gameManager.dealer == seat { return "D" }
         if gameManager.game.smallBlindSeat == seat { return "SB" }
         return "BB"

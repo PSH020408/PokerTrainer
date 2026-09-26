@@ -10,6 +10,15 @@ import Foundation
 // Standard playing-card suits (♠, ♥, ♦, ♣).
 nonisolated enum Suit: String, CaseIterable, Codable, Hashable, Sendable {
     case spades = "♠", hearts = "♥", diamonds = "♦", clubs = "♣"
+
+    var accessibilityName: String {
+        switch self {
+        case .spades: return "spades"
+        case .hearts: return "hearts"
+        case .diamonds: return "diamonds"
+        case .clubs: return "clubs"
+        }
+    }
 }
 
 // Immutable representation of a playing card.

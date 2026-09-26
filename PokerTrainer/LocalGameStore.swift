@@ -29,9 +29,54 @@ nonisolated struct HeadsUpSession: Codable, Sendable {
 nonisolated struct ThreePlayerSession: Codable, Sendable {
     let game: ThreePlayerGameEngine
     let gameMessage: String
+    let campaign: ThreePlayerCampaign
+
+    init(
+        game: ThreePlayerGameEngine,
+        gameMessage: String,
+        campaign: ThreePlayerCampaign = ThreePlayerCampaign()
+    ) {
+        self.game = game
+        self.gameMessage = gameMessage
+        self.campaign = campaign
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case game, gameMessage, campaign
+    }
+
+    // Saves made before the campaign existed remain playable at level one.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        game = try values.decode(ThreePlayerGameEngine.self, forKey: .game)
+        gameMessage = try values.decode(String.self, forKey: .gameMessage)
+        if let savedCampaign = try values.decodeIfPresent(
+            ThreePlayerCampaign.self, forKey: .campaign
+        ) {
+            campaign = savedCampaign
+        } else {
+            var migratedCampaign = ThreePlayerCampaign()
+            _ = migratedCampaign.recordCompletedHand(game)
+            campaign = migratedCampaign
+        }
+    }
 
     var isValid: Bool {
-        game.isValidForRestoration()
+        guard game.isValidForRestoration(), campaign.isValid,
+              campaign.handsCompletedAtLevel <= game.handNumber,
+              !campaign.won || game.isHandComplete else {
+            return false
+        }
+        // A zero-chip opponent may still be all-in during an active hand.
+        // Only seats already out, or busted at the completed hand, count here.
+        if game.state(for: .player).stack > 0 {
+            let eliminatedAtTable = Set(ThreePlayerCampaign.opponentSeats.filter { seat in
+                let state = game.state(for: seat)
+                return state.stack == 0 && (game.isHandComplete || state.hand.isEmpty)
+            })
+            return campaign.defeatedOpponents == eliminatedAtTable
+        }
+        return true
     }
 }
 
@@ -51,7 +96,7 @@ nonisolated enum LocalSaveError: Error, Equatable, LocalizedError {
 
 // Each table has its own atomic, versioned save in the app's local container.
 nonisolated struct LocalGameStore: Sendable {
-    static let schemaVersion = 1
+    static let schemaVersion = 2
     static let shared = LocalGameStore()
 
     let directory: URL
@@ -114,7 +159,7 @@ nonisolated struct LocalGameStore: Sendable {
 
         let data = try Data(contentsOf: saveURL)
         let version = try JSONDecoder().decode(VersionHeader.self, from: data).version
-        guard version == Self.schemaVersion else {
+        guard version == 1 || version == Self.schemaVersion else {
             throw LocalSaveError.unsupportedVersion
         }
         return try JSONDecoder().decode(SaveEnvelope<Value>.self, from: data).session

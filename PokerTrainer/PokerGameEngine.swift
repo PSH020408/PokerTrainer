@@ -225,6 +225,12 @@ nonisolated struct HeadsUpGameEngine: Codable, Sendable {
         canRaise(seat: .player)
     }
 
+    var minimumRaiseAmount: Int { minimumRaiseIncrement }
+
+    func maximumRaiseAmount(for seat: PokerSeat) -> Int {
+        max(0, maximumCommit(for: seat) - amountToCall(for: seat))
+    }
+
     mutating func startHand(using suppliedDeck: Deck? = nil) throws {
         guard currentActor == nil else {
             throw GameRuleError.handAlreadyInProgress
@@ -523,6 +529,7 @@ nonisolated struct HeadsUpGameEngine: Codable, Sendable {
     }
 
     private mutating func awardFold(to winner: PokerSeat) {
+        settleUnmatchedBets()
         let awardedPot = potSize
         addToStack(potSize, for: winner)
         handOutcome = HandOutcome(

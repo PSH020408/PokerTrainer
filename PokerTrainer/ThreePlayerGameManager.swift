@@ -13,10 +13,9 @@ final class ThreePlayerGameManager: ObservableObject {
     @Published private(set) var game = ThreePlayerGameEngine()
     @Published private(set) var isOpponentThinking = false
     @Published private(set) var gameMessage = "Preparing the three-player table..."
-    @Published private(set) var myEquity = 0.0
+    @Published private(set) var myEquity: Double?
     @Published private(set) var saveWarning: String?
-
-    let opponentLevel = 1
+    @Published private(set) var campaign = ThreePlayerCampaign()
 
     private let store: LocalGameStore
     private var hasActivated = false
@@ -25,12 +24,14 @@ final class ThreePlayerGameManager: ObservableObject {
     private var opponentTurnToken = UUID()
     private var equityTask: Task<Void, Never>?
     private var opponentTask: Task<Void, Never>?
+    private var opponentEquityCache: [EquitySituation: Double] = [:]
 
     init(restoring session: ThreePlayerSession? = nil, store: LocalGameStore = .shared) {
         self.store = store
         if let session {
             game = session.game
             gameMessage = session.gameMessage
+            campaign = session.campaign
         }
     }
 
@@ -44,6 +45,9 @@ final class ThreePlayerGameManager: ObservableObject {
     var dealer: TableSeat { game.dealer }
     var isHandComplete: Bool { game.isHandComplete }
     var canPlayerRaise: Bool { game.canRaise(seat: .player) }
+    var opponentLevel: Int { campaign.level }
+    var campaignWon: Bool { campaign.won }
+    var defeatedCount: Int { campaign.defeatedOpponents.count }
 
     var canPlayerAct: Bool {
         currentActor == .player && !isOpponentThinking && !isHandComplete
@@ -56,11 +60,13 @@ final class ThreePlayerGameManager: ObservableObject {
     var displayedPotSize: Int {
         guard let outcome = game.handOutcome else { return game.potSize }
         return outcome.pots.reduce(0) { $0 + $1.amount }
-            + outcome.refunds.values.reduce(0, +)
     }
 
     var nextHandButtonTitle: String {
-        playerStack == 0 ? "RESTART TABLE ♠️" : "START NEXT HAND ♠️"
+        if campaignWon { return "PLAY AGAIN ♠️" }
+        if playerStack == 0 { return "RESTART TABLE ♠️" }
+        if campaign.isLevelCleared { return "START LEVEL \(opponentLevel + 1) ♠️" }
+        return "START NEXT HAND ♠️"
     }
 
     func state(for seat: TableSeat) -> TablePlayerState {
@@ -90,25 +96,34 @@ final class ThreePlayerGameManager: ObservableObject {
 
         do {
             var nextGame = game
-            if nextGame.state(for: .player).stack == 0 {
+            var nextCampaign = campaign
+            if campaignWon || nextGame.state(for: .player).stack == 0 {
                 nextGame = ThreePlayerGameEngine()
-            } else if TableSeat.allCases.contains(where: {
-                $0 != .player && nextGame.state(for: $0).stack == 0
-            }) {
+                nextCampaign = ThreePlayerCampaign()
+            } else if campaign.isLevelCleared {
+                nextCampaign.advanceLevel()
                 try nextGame.replaceStacks(
                     player: nextGame.state(for: .player).stack,
-                    opponentOne: nextGame.state(for: .opponentOne).stack == 0
-                        ? 1_000 : nextGame.state(for: .opponentOne).stack,
-                    opponentTwo: nextGame.state(for: .opponentTwo).stack == 0
-                        ? 1_000 : nextGame.state(for: .opponentTwo).stack
+                    opponentOne: 1_000 * nextCampaign.level,
+                    opponentTwo: 1_000 * nextCampaign.level
                 )
             }
 
+            // Raise blinds with the level and after every 12 completed hands.
+            // A saved hand always finishes with its original blind structure.
+            let blindMultiplier = nextCampaign.blindMultiplier
+            try nextGame.setBlinds(
+                small: 10 * blindMultiplier,
+                big: 20 * blindMultiplier
+            )
+
             try nextGame.startHand()
             game = nextGame
+            opponentEquityCache.removeAll(keepingCapacity: true)
+            campaign = nextCampaign
             handToken = UUID()
             gameMessage = game.lastMessage
-            myEquity = 0
+            myEquity = nil
             updateEquity()
             continueGameFlow()
             persist()
@@ -127,19 +142,26 @@ final class ThreePlayerGameManager: ObservableObject {
 
     private func apply(_ action: PokerAction, for seat: TableSeat) {
         let previousCommunityCount = game.communityCards.count
+        let previousLiveSeatCount = game.liveSeats.count
         do {
             var nextGame = game
             try nextGame.perform(action, by: seat)
             game = nextGame
             gameMessage = game.lastMessage
-            processUpdatedGame(previousCommunityCount: previousCommunityCount)
+            processUpdatedGame(
+                previousCommunityCount: previousCommunityCount,
+                previousLiveSeatCount: previousLiveSeatCount
+            )
             persist()
         } catch {
             gameMessage = error.localizedDescription
         }
     }
 
-    private func processUpdatedGame(previousCommunityCount: Int) {
+    private func processUpdatedGame(
+        previousCommunityCount: Int,
+        previousLiveSeatCount: Int
+    ) {
         if game.isHandComplete {
             finishPresentedHand()
             return
@@ -147,8 +169,9 @@ final class ThreePlayerGameManager: ObservableObject {
 
         if game.state(for: .player).isFolded {
             equityTask?.cancel()
-            myEquity = 0
-        } else if game.communityCards.count != previousCommunityCount {
+            myEquity = nil
+        } else if game.communityCards.count != previousCommunityCount
+                    || game.liveSeats.count != previousLiveSeatCount {
             updateEquity()
         }
         continueGameFlow()
@@ -174,37 +197,57 @@ final class ThreePlayerGameManager: ObservableObject {
         let handSnapshot = game.state(for: seat).hand
         let communitySnapshot = game.communityCards
         let activePlayersCount = game.liveSeats.count
-        let potSnapshot = game.potSize
-        let callAmountSnapshot = game.amountToCall(for: seat)
+        let situation = EquitySituation(
+            hand: handSnapshot,
+            communityCards: communitySnapshot,
+            activePlayersCount: activePlayersCount
+        )
+        let cachedEquity = opponentEquityCache[situation]
+        let context = OpponentDecisionContext(
+            holeCards: handSnapshot,
+            communityCards: communitySnapshot,
+            equity: 0,
+            potSize: game.potSize,
+            amountToCall: game.amountToCall(for: seat),
+            minimumRaise: game.minimumRaiseAmount,
+            maximumRaise: game.maximumRaiseAmount(for: seat),
+            canRaise: game.canRaise(seat: seat),
+            isInPosition: game.dealer == seat,
+            activePlayers: activePlayersCount,
+            level: opponentLevel,
+            randomRoll: Double.random(in: 0..<1),
+            personality: seat == .opponentOne ? .aggressive : .cautious
+        )
 
         isOpponentThinking = true
         gameMessage = "\(seat.displayName) is thinking..."
 
         opponentTask = Task { [weak self] in
-            let calculation = Task.detached(priority: .userInitiated) {
-                EquityCalculator.calculateEquity(
-                    playerHand: handSnapshot,
-                    communityCards: communitySnapshot,
-                    activePlayersCount: activePlayersCount,
-                    simulations: 1_000
-                )
-            }
-            let equity = await withTaskCancellationHandler {
-                await calculation.value
-            } onCancel: {
-                calculation.cancel()
+            let equity: Double
+            if let cachedEquity {
+                equity = cachedEquity
+            } else {
+                let calculation = Task.detached(priority: .userInitiated) {
+                    EquityCalculator.calculateEquity(
+                        playerHand: handSnapshot,
+                        communityCards: communitySnapshot,
+                        activePlayersCount: activePlayersCount,
+                        simulations: 800
+                    )
+                }
+                equity = await withTaskCancellationHandler {
+                    await calculation.value
+                } onCancel: {
+                    calculation.cancel()
+                }
             }
             guard !Task.isCancelled else { return }
 
-            let decision: PokerAction
+            var pricedContext = context
+            pricedContext.equity = equity
+            let decision = OpponentStrategy.decide(pricedContext)
             do {
-                decision = try await EquityCalculator.makeOpponentDecision(
-                    equity: equity,
-                    potSize: potSnapshot,
-                    callAmount: callAmountSnapshot,
-                    difficultyLevel: 1,
-                    maximumDelaySeconds: 0.7
-                ).action
+                try await Task.sleep(for: .milliseconds(250))
             } catch {
                 return
             }
@@ -218,6 +261,9 @@ final class ThreePlayerGameManager: ObservableObject {
                 return
             }
 
+            if cachedEquity == nil {
+                self.opponentEquityCache[situation] = equity
+            }
             self.isOpponentThinking = false
             self.applyOpponentDecision(decision, for: seat)
         }
@@ -225,6 +271,7 @@ final class ThreePlayerGameManager: ObservableObject {
 
     private func applyOpponentDecision(_ decision: PokerAction, for seat: TableSeat) {
         let previousCommunityCount = game.communityCards.count
+        let previousLiveSeatCount = game.liveSeats.count
         var nextGame = game
 
         do {
@@ -241,12 +288,16 @@ final class ThreePlayerGameManager: ObservableObject {
 
         game = nextGame
         gameMessage = game.lastMessage
-        processUpdatedGame(previousCommunityCount: previousCommunityCount)
+        processUpdatedGame(
+            previousCommunityCount: previousCommunityCount,
+            previousLiveSeatCount: previousLiveSeatCount
+        )
         persist()
     }
 
     private func updateEquity() {
         equityTask?.cancel()
+        myEquity = nil
         guard playerHand.count == 2,
               !game.state(for: .player).isFolded,
               !game.isHandComplete else { return }
@@ -289,16 +340,26 @@ final class ThreePlayerGameManager: ObservableObject {
     private func finishPresentedHand() {
         opponentTask?.cancel()
         equityTask?.cancel()
+        myEquity = nil
         opponentTurnToken = UUID()
         equityRequestToken = UUID()
         isOpponentThinking = false
 
+        let campaignEvent = campaign.recordCompletedHand(game)
+
         if playerStack == 0 {
             gameMessage += " Your stack is empty. Restart the table to play again."
-        } else if TableSeat.allCases.contains(where: {
-            $0 != .player && game.state(for: $0).stack == 0
-        }) {
-            gameMessage += " A defeated opponent will rebuy for the next hand."
+        } else {
+            switch campaignEvent {
+            case .none:
+                break
+            case .opponentDefeated(let seat):
+                gameMessage += " \(seat.displayName) defeated at this level (\(defeatedCount)/2)."
+            case .levelCleared(let nextLevel):
+                gameMessage += " Both opponents defeated. Level \(nextLevel) unlocked!"
+            case .championshipWon:
+                gameMessage += " Championship complete — you defeated both opponents at every level!"
+            }
         }
     }
 
@@ -306,7 +367,8 @@ final class ThreePlayerGameManager: ObservableObject {
         do {
             try store.saveThreePlayer(ThreePlayerSession(
                 game: game,
-                gameMessage: gameMessage
+                gameMessage: gameMessage,
+                campaign: campaign
             ))
             saveWarning = nil
         } catch {

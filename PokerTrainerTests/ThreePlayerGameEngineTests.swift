@@ -9,6 +9,34 @@ import XCTest
 @testable import PokerTrainerCore
 
 final class ThreePlayerGameEngineTests: XCTestCase {
+    func testPlayerFoldWinMessageUsesCorrectGrammar() throws {
+        var game = ThreePlayerGameEngine(firstDealer: .opponentOne)
+        try game.startHand()
+        try game.perform(.fold, by: .opponentOne)
+        try game.perform(.fold, by: .opponentTwo)
+
+        XCTAssertTrue(game.isHandComplete)
+        XCTAssertTrue(game.lastMessage.hasPrefix("You win "))
+    }
+
+    func testUncalledAllInIsRefundedBeforeThreePlayerFoldPot() throws {
+        var game = ThreePlayerGameEngine()
+        try game.startHand()
+        try game.perform(.allIn, by: .player)
+        try game.perform(.fold, by: .opponentOne)
+        try game.perform(.fold, by: .opponentTwo)
+
+        let outcome = try XCTUnwrap(game.handOutcome)
+        XCTAssertEqual(outcome.reason, .fold)
+        XCTAssertEqual(outcome.refunds[.player], 980)
+        XCTAssertEqual(outcome.pots.reduce(0) { $0 + $1.amount }, 50)
+        XCTAssertEqual(outcome.winnings[.player], 50)
+        XCTAssertEqual(game.state(for: .player).stack, 1_030)
+        XCTAssertEqual(game.state(for: .opponentOne).stack, 990)
+        XCTAssertEqual(game.state(for: .opponentTwo).stack, 980)
+        XCTAssertEqual(game.totalChipCount, 3_000)
+    }
+
     func testThreePlayerPositionsAndPreFlopOrder() throws {
         var game = ThreePlayerGameEngine(firstDealer: .player)
 
@@ -29,6 +57,93 @@ final class ThreePlayerGameEngineTests: XCTestCase {
         }
         XCTAssertEqual(allHoleCards.count, 6)
         XCTAssertEqual(Set(allHoleCards).count, 6)
+    }
+
+    func testEliminatedOpponentSitsOutAndRemainingSeatsPlayHeadsUp() throws {
+        var game = ThreePlayerGameEngine(
+            playerStack: 1_000,
+            opponentOneStack: 0,
+            opponentTwoStack: 1_000,
+            firstDealer: .player
+        )
+        try game.startHand()
+
+        XCTAssertEqual(game.dealer, .player)
+        XCTAssertEqual(game.smallBlindSeat, .player)
+        XCTAssertEqual(game.bigBlindSeat, .opponentTwo)
+        XCTAssertEqual(game.currentActor, .player)
+        XCTAssertEqual(game.potSize, 30)
+        XCTAssertTrue(game.state(for: .opponentOne).hand.isEmpty)
+        XCTAssertTrue(game.state(for: .opponentOne).isFolded)
+        XCTAssertEqual(game.state(for: .player).hand.count, 2)
+        XCTAssertEqual(game.state(for: .opponentTwo).hand.count, 2)
+        XCTAssertTrue(game.isValidForRestoration())
+
+        try game.perform(.call, by: .player)
+        try game.perform(.check, by: .opponentTwo)
+        XCTAssertEqual(game.currentStreet, .flop)
+        XCTAssertEqual(game.currentActor, .opponentTwo)
+        XCTAssertEqual(game.totalChipCount, 2_000)
+        XCTAssertTrue(game.isValidForRestoration())
+    }
+
+    func testDealerRotationSkipsAnEliminatedSeat() throws {
+        var game = ThreePlayerGameEngine(firstDealer: .player)
+        try game.startHand()
+        try game.perform(.fold, by: .player)
+        try game.perform(.fold, by: .opponentOne)
+
+        try game.replaceStacks(player: 1_000, opponentOne: 0, opponentTwo: 1_000)
+        try game.startHand()
+
+        XCTAssertEqual(game.dealer, .opponentTwo)
+        XCTAssertEqual(game.smallBlindSeat, .opponentTwo)
+        XCTAssertEqual(game.bigBlindSeat, .player)
+        XCTAssertEqual(game.currentActor, .opponentTwo)
+        XCTAssertEqual(game.totalChipCount, 2_000)
+        XCTAssertTrue(game.isValidForRestoration())
+    }
+
+    func testHeadsUpContinuationCompletesAndRotatesBlinds() throws {
+        var game = ThreePlayerGameEngine(
+            playerStack: 1_000,
+            opponentOneStack: 0,
+            opponentTwoStack: 1_000
+        )
+        try game.startHand()
+        try game.perform(.fold, by: .player)
+
+        XCTAssertTrue(game.isHandComplete)
+        XCTAssertEqual(game.handOutcome?.reason, .fold)
+        XCTAssertEqual(game.state(for: .opponentTwo).stack, 1_010)
+        XCTAssertEqual(game.totalChipCount, 2_000)
+        XCTAssertTrue(game.isValidForRestoration())
+
+        try game.startHand()
+        XCTAssertEqual(game.dealer, .opponentTwo)
+        XCTAssertEqual(game.smallBlindSeat, .opponentTwo)
+        XCTAssertEqual(game.bigBlindSeat, .player)
+        XCTAssertEqual(game.currentActor, .opponentTwo)
+        XCTAssertTrue(game.isValidForRestoration())
+    }
+
+    func testBlindsCanIncreaseOnlyBetweenHands() throws {
+        var game = ThreePlayerGameEngine()
+        try game.startHand()
+        XCTAssertThrowsError(try game.setBlinds(small: 20, big: 40)) {
+            XCTAssertEqual($0 as? MultiplayerRuleError, .handAlreadyInProgress)
+        }
+        try game.perform(.fold, by: .player)
+        try game.perform(.fold, by: .opponentOne)
+        try game.setBlinds(small: 20, big: 40)
+        try game.startHand()
+
+        XCTAssertEqual(game.smallBlind, 20)
+        XCTAssertEqual(game.bigBlind, 40)
+        XCTAssertEqual(game.state(for: .opponentTwo).currentBet, 20)
+        XCTAssertEqual(game.state(for: .player).currentBet, 40)
+        XCTAssertEqual(game.potSize, 60)
+        XCTAssertTrue(game.isValidForRestoration())
     }
 
     func testCircularActionOrderAdvancesOnlyAfterAllSeatsAct() throws {

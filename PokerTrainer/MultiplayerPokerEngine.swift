@@ -67,7 +67,7 @@ nonisolated enum MultiplayerRuleError: Error, Equatable, LocalizedError {
         switch self {
         case .handAlreadyInProgress: return "Finish the current hand before starting another one."
         case .handNotInProgress: return "Start a hand before taking an action."
-        case .depletedStack: return "All three seats need chips before a hand can start."
+        case .depletedStack: return "At least two seats need chips before a hand can start."
         case .deckExhausted: return "The deck does not contain enough unique cards."
         case .wrongTurn: return "That seat cannot act right now."
         case .cannotCheckFacingBet: return "A seat facing a bet must call, raise, or fold."
@@ -93,8 +93,8 @@ nonisolated struct ThreePlayerGameEngine: Codable, Sendable {
     private(set) var lastMessage: String = "Preparing the three-player table..."
     private(set) var totalChipsAtHandStart: Int = 0
 
-    let smallBlind: Int
-    let bigBlind: Int
+    private(set) var smallBlind: Int
+    private(set) var bigBlind: Int
 
     private var seatOrder: [TableSeat] { TableSeat.allCases }
     private var nextDealer: TableSeat
@@ -143,9 +143,7 @@ nonisolated struct ThreePlayerGameEngine: Codable, Sendable {
         guard smallBlind > 0, bigBlind >= smallBlind,
               minimumRaiseIncrement >= bigBlind,
               handNumber >= 0,
-              Set(players.keys) == Set(seatOrder),
-              smallBlindSeat == nextSeat(after: dealer),
-              bigBlindSeat == nextSeat(after: smallBlindSeat) else {
+              Set(players.keys) == Set(seatOrder) else {
             return false
         }
 
@@ -176,7 +174,21 @@ nonisolated struct ThreePlayerGameEngine: Codable, Sendable {
                 && totalChipsAtHandStart == 0
         }
 
-        guard seatOrder.allSatisfy({ players[$0]?.hand.count == 2 }),
+        let participants = Set(seatOrder.filter { players[$0]?.hand.count == 2 })
+        guard (2...3).contains(participants.count) else { return false }
+        let expectedSmallBlind = participants.count == 2
+            ? dealer : nextParticipatingSeat(after: dealer, among: participants)
+        guard participants.contains(dealer),
+              seatOrder.allSatisfy({ seat in
+                  participants.contains(seat) ||
+                      (players[seat]?.hand.isEmpty == true
+                       && players[seat]?.stack == 0
+                       && players[seat]?.isFolded == true)
+              }),
+              smallBlindSeat == expectedSmallBlind,
+              bigBlindSeat == nextParticipatingSeat(
+                  after: smallBlindSeat, among: participants
+              ),
               totalChipCount == totalChipsAtHandStart,
               nextDealer == nextSeat(after: dealer) else {
             return false
@@ -236,20 +248,31 @@ nonisolated struct ThreePlayerGameEngine: Codable, Sendable {
         return state(for: seat).stack > amountToCall(for: seat)
     }
 
+    var minimumRaiseAmount: Int { minimumRaiseIncrement }
+
+    func maximumRaiseAmount(for seat: TableSeat) -> Int {
+        max(0, state(for: seat).stack - amountToCall(for: seat))
+    }
+
     mutating func startHand(using suppliedDeck: Deck? = nil) throws {
         guard currentActor == nil else {
             throw MultiplayerRuleError.handAlreadyInProgress
         }
-        guard seatOrder.allSatisfy({ state(for: $0).stack > 0 }) else {
+        let participatingSeats = Set(seatOrder.filter { state(for: $0).stack > 0 })
+        guard participatingSeats.count >= 2 else {
             throw MultiplayerRuleError.depletedStack
         }
 
         resetHandState()
         totalChipsAtHandStart = players.values.reduce(0) { $0 + $1.stack }
-        dealer = nextDealer
+        dealer = participatingSeats.contains(nextDealer)
+            ? nextDealer : nextParticipatingSeat(after: nextDealer, among: participatingSeats)
         nextDealer = nextSeat(after: dealer)
-        smallBlindSeat = nextSeat(after: dealer)
-        bigBlindSeat = nextSeat(after: smallBlindSeat)
+        smallBlindSeat = participatingSeats.count == 2
+            ? dealer : nextParticipatingSeat(after: dealer, among: participatingSeats)
+        bigBlindSeat = nextParticipatingSeat(
+            after: smallBlindSeat, among: participatingSeats
+        )
         handNumber += 1
         deck = suppliedDeck ?? Deck()
 
@@ -334,6 +357,18 @@ nonisolated struct ThreePlayerGameEngine: Codable, Sendable {
         resetContributions()
     }
 
+    mutating func setBlinds(small: Int, big: Int) throws {
+        guard currentActor == nil else {
+            throw MultiplayerRuleError.handAlreadyInProgress
+        }
+        guard small > 0, big >= small else {
+            throw MultiplayerRuleError.actionUnavailable
+        }
+        smallBlind = small
+        bigBlind = big
+        minimumRaiseIncrement = big
+    }
+
     private var highestCurrentBet: Int {
         players.values.map(\.currentBet).max() ?? 0
     }
@@ -352,23 +387,36 @@ nonisolated struct ThreePlayerGameEngine: Codable, Sendable {
                 player.hand.removeAll(keepingCapacity: true)
                 player.currentBet = 0
                 player.totalContribution = 0
-                player.isFolded = false
+                player.isFolded = player.stack == 0
             }
         }
     }
 
     private mutating func dealHoleCards() throws {
-        let firstRecipient = nextSeat(after: dealer)
+        let participants = Set(seatOrder.filter { state(for: $0).stack > 0 })
+        let firstRecipient = nextParticipatingSeat(after: dealer, among: participants)
         for _ in 0..<2 {
             var recipient = firstRecipient
-            for _ in seatOrder.indices {
+            for _ in 0..<participants.count {
                 let card = try drawUniqueCard()
                 updatePlayer(recipient) { player in
                     player.hand.append(card)
                 }
-                recipient = nextSeat(after: recipient)
+                recipient = nextParticipatingSeat(after: recipient, among: participants)
             }
         }
+    }
+
+    private func nextParticipatingSeat(
+        after seat: TableSeat,
+        among participants: Set<TableSeat>
+    ) -> TableSeat {
+        var candidate = seat
+        for _ in seatOrder {
+            candidate = nextSeat(after: candidate)
+            if participants.contains(candidate) { return candidate }
+        }
+        preconditionFailure("At least one seat must participate in the hand.")
     }
 
     private mutating func postBlind(_ amount: Int, for seat: TableSeat) {
@@ -643,16 +691,21 @@ nonisolated struct ThreePlayerGameEngine: Codable, Sendable {
     }
 
     private mutating func awardFold(to winner: TableSeat) {
-        let amount = potSize
+        let settlement = buildPotsAndRefunds()
+        for (seat, refund) in settlement.refunds {
+            addToStack(refund, for: seat)
+        }
+        let amount = settlement.pots.reduce(0) { $0 + $1.amount }
         addToStack(amount, for: winner)
         handOutcome = MultiplayerHandOutcome(
             reason: .fold,
             winnings: [winner: amount],
-            refunds: [:],
-            pots: [SidePot(amount: amount, eligibleSeats: [winner])],
+            refunds: settlement.refunds,
+            pots: settlement.pots,
             showdownRanks: [:]
         )
-        lastMessage = "\(winner.displayName) wins \(amount) chips after the folds."
+        let winnerText = winner == .player ? "You win" : "\(winner.displayName) wins"
+        lastMessage = "\(winnerText) \(amount) chips after the folds."
         closeHand()
     }
 

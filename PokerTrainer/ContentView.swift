@@ -75,7 +75,9 @@ struct ContentView: View {
                     detail: "Heads-up campaign",
                     savedHand: headsUpSave?.game.handNumber,
                     savedStreet: headsUpSave?.game.currentStreet,
-                    savedHandComplete: headsUpSave?.game.isHandComplete ?? false
+                    savedHandComplete: headsUpSave?.game.isHandComplete ?? false,
+                    savedLevel: headsUpSave?.opponentLevel,
+                    savedWon: headsUpSave?.campaignWon ?? false
                 )
                 tableChoice(
                     mode: .threePlayer,
@@ -83,7 +85,9 @@ struct ContentView: View {
                     detail: "Two computer opponents",
                     savedHand: threePlayerSave?.game.handNumber,
                     savedStreet: threePlayerSave?.game.currentStreet,
-                    savedHandComplete: threePlayerSave?.game.isHandComplete ?? false
+                    savedHandComplete: threePlayerSave?.game.isHandComplete ?? false,
+                    savedLevel: threePlayerSave?.campaign.level,
+                    savedWon: threePlayerSave?.campaign.won ?? false
                 )
 
                 if let saveLoadWarning {
@@ -104,7 +108,9 @@ struct ContentView: View {
         detail: String,
         savedHand: Int?,
         savedStreet: GameStreet?,
-        savedHandComplete: Bool
+        savedHandComplete: Bool,
+        savedLevel: Int?,
+        savedWon: Bool
     ) -> some View {
         VStack(spacing: 8) {
             Text(title)
@@ -112,7 +118,8 @@ struct ContentView: View {
             Text(detail)
                 .font(.footnote)
             if let savedHand, let savedStreet {
-                Text("Saved hand \(savedHand) · \(savedHandComplete ? "Complete" : savedStreet.displayName)")
+                Text(savedWon ? "Championship complete" :
+                    "Level \(savedLevel ?? 1) · Hand \(savedHand) · \(savedHandComplete ? "Complete" : savedStreet.displayName)")
                     .font(.caption)
                     .foregroundColor(.yellow)
 
@@ -241,7 +248,7 @@ private struct HeadsUpTableView: View {
 
                 // Community cards and pot information.
                 VStack(spacing: 8) {
-                    Text("POT: \(gameManager.potSize) CHIPS")
+                    Text("\(gameManager.isHandComplete ? "LAST POT" : "POT"): \(gameManager.displayedPotSize) CHIPS")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.yellow)
@@ -270,13 +277,21 @@ private struct HeadsUpTableView: View {
                 VStack(spacing: 12) {
                     // Live estimated-equity guide.
                     HStack {
-                        Text("Estimated Equity:")
-                            .font(.footnote)
-                            .foregroundColor(.white)
-                        Text("\(String(format: "%.1f", gameManager.myEquity))%")
-                            .font(.footnote)
-                            .fontWeight(.bold)
-                            .foregroundColor(gameManager.myEquity > 50 ? .green : .red)
+                        if !gameManager.isHandComplete {
+                            Text("Equity vs random hands:")
+                                .font(.footnote)
+                                .foregroundColor(.white)
+                            if let equity = gameManager.myEquity {
+                                Text("\(String(format: "%.1f", equity))%")
+                                    .font(.footnote)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(equity > 50 ? .green : .red)
+                            } else {
+                                Text("Calculating...")
+                                    .font(.footnote)
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
+                        }
                         Spacer()
                         Text(gameManager.gameMessage)
                             .font(.caption)
@@ -389,6 +404,8 @@ struct CardView: View {
         .background(Color.white)
         .cornerRadius(6)
         .shadow(radius: 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(rankString(card.rank)) of \(card.suit.accessibilityName)")
     }
 
     func rankString(_ rank: Int) -> String {
@@ -413,6 +430,7 @@ struct CardBackView: View {
                     .padding(3)
             )
             .shadow(radius: 2)
+            .accessibilityLabel("Face-down card")
     }
 }
 

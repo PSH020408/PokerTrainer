@@ -71,6 +71,39 @@ final class LocalGameStoreTests: XCTestCase {
         XCTAssertEqual(restored.totalChipCount, original.totalChipCount)
     }
 
+    func testEliminatedOpponentStaysOutAfterSaveAndResume() throws {
+        let store = try makeStore()
+        var original = ThreePlayerGameEngine(
+            playerStack: 1_000,
+            opponentOneStack: 0,
+            opponentTwoStack: 1_000
+        )
+        try original.startHand(using: Deck(shuffled: false))
+        try original.perform(.call, by: .player)
+        try store.saveThreePlayer(ThreePlayerSession(
+            game: original,
+            gameMessage: original.lastMessage,
+            campaign: ThreePlayerCampaign(
+                level: 1,
+                defeatedOpponents: [.opponentOne]
+            )
+        ))
+
+        let saved = try XCTUnwrap(store.loadThreePlayer())
+        XCTAssertEqual(saved.campaign.defeatedOpponents, [.opponentOne])
+        XCTAssertTrue(saved.game.state(for: .opponentOne).hand.isEmpty)
+        XCTAssertTrue(saved.game.state(for: .opponentOne).isFolded)
+        XCTAssertEqual(saved.game.currentActor, .opponentTwo)
+
+        var restored = saved.game
+        try original.perform(.check, by: .opponentTwo)
+        try restored.perform(.check, by: .opponentTwo)
+        XCTAssertEqual(restored.currentStreet, .flop)
+        XCTAssertEqual(restored.currentActor, original.currentActor)
+        XCTAssertEqual(restored.communityCards, original.communityCards)
+        XCTAssertEqual(restored.totalChipCount, 2_000)
+    }
+
     func testCompletedHandRestoresDealerRotation() throws {
         let store = try makeStore()
         var game = ThreePlayerGameEngine()
@@ -119,6 +152,57 @@ final class LocalGameStoreTests: XCTestCase {
 
         XCTAssertEqual(try store.loadHeadsUp()?.game.currentActor, .opponent)
         XCTAssertEqual(try store.loadThreePlayer()?.game.currentActor, .player)
+    }
+
+    func testVersionOneThreePlayerSaveMigratesToCampaign() throws {
+        let store = try makeStore()
+        var game = ThreePlayerGameEngine()
+        try game.startHand()
+        try store.saveThreePlayer(ThreePlayerSession(
+            game: game,
+            gameMessage: game.lastMessage
+        ))
+
+        let saveURL = store.url(for: .threePlayer)
+        let data = try Data(contentsOf: saveURL)
+        var envelope = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        var session = try XCTUnwrap(envelope["session"] as? [String: Any])
+        session.removeValue(forKey: "campaign")
+        envelope["session"] = session
+        envelope["version"] = 1
+        try JSONSerialization.data(withJSONObject: envelope).write(to: saveURL)
+
+        let migrated = try XCTUnwrap(store.loadThreePlayer())
+        XCTAssertEqual(migrated.campaign.level, 1)
+        XCTAssertTrue(migrated.campaign.defeatedOpponents.isEmpty)
+    }
+
+    func testEarlierCampaignSaveDefaultsBlindClockToZero() throws {
+        let store = try makeStore()
+        var game = ThreePlayerGameEngine()
+        try game.startHand()
+        try store.saveThreePlayer(ThreePlayerSession(
+            game: game,
+            gameMessage: game.lastMessage
+        ))
+
+        let saveURL = store.url(for: .threePlayer)
+        let data = try Data(contentsOf: saveURL)
+        var envelope = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        var session = try XCTUnwrap(envelope["session"] as? [String: Any])
+        var campaign = try XCTUnwrap(session["campaign"] as? [String: Any])
+        campaign.removeValue(forKey: "handsCompletedAtLevel")
+        session["campaign"] = campaign
+        envelope["session"] = session
+        try JSONSerialization.data(withJSONObject: envelope).write(to: saveURL)
+
+        let restored = try XCTUnwrap(store.loadThreePlayer())
+        XCTAssertEqual(restored.campaign.handsCompletedAtLevel, 0)
+        XCTAssertEqual(restored.campaign.blindMultiplier, 1)
     }
 
     func testCorruptAndUnsupportedSavesDoNotLoad() throws {
