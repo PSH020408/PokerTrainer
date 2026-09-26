@@ -10,9 +10,9 @@ PokerTrainer is a personal SwiftUI project in which the player competes against 
 
 ## Current status
 
-The repository contains a tested heads-up prototype. It deals cards, validates player actions, estimates equity, compares final hands, settles chips, alternates positions, and advances through four opponent levels.
+The repository contains a tested heads-up app and an independently tested three-player core engine. The playable interface deals cards, validates player actions, estimates equity, compares final hands, settles chips, alternates positions, and advances through four opponent levels.
 
-The first technical review found important betting, all-in, tie-equity, hidden-card, and asynchronous-state problems. Phase 1 replaced the original flow with a deterministic heads-up engine and added an automated regression suite before any three-player or animation work.
+The first technical review found important betting, all-in, tie-equity, hidden-card, and asynchronous-state problems. Phase 1 replaced the original flow with a deterministic heads-up engine. Phase 2 now adds circular three-seat action order plus main- and side-pot settlement behind the existing interface.
 
 ## Current features
 
@@ -76,6 +76,9 @@ PokerGameManager ──────── UI coordination and cancellable backgr
       ├── HeadsUpGameEngine
       │     ├── Turn order, positions, and legal actions
       │     └── Chips, pot settlement, and hand outcomes
+      ├── ThreePlayerGameEngine
+      │     ├── Circular action order and three-seat positions
+      │     └── Main pots, side pots, refunds, and eligibility
       ├── Deck ────────── Card creation, shuffling, and dealing
       ├── Evaluator ───── Hand ranking and tie-breakers
       └── EquityCalculator
@@ -96,11 +99,11 @@ The deterministic engine decides what happened. The manager coordinates computer
 | An older calculation could overwrite a new one | Hand and request tokens reject stale results |
 | A fold could reveal hidden cards | Fold and showdown outcomes are represented separately |
 
-The Swift Package test target currently contains 19 regression tests, including 100 scripted hands that verify chip conservation after every action. This does not prove that the app is bug-free, but it gives the core rules a repeatable safety net.
+The Swift Package test target currently contains 28 regression tests. They include 100 scripted heads-up hands and 60 scripted three-player hands that verify chip conservation after every action. This does not prove that the app is bug-free, but it gives the core rules a repeatable safety net.
 
 ## Current limitations
 
-- The table supports heads-up play only; three-player side pots are Phase 2 work.
+- The visible SwiftUI table still supports heads-up play only. The tested three-player engine is ready for UI and two-opponent coordination.
 - Saved games and Continue Game are not implemented yet.
 - The computer policy remains equity- and pot-odds-based rather than range-aware.
 - Card and chip animations, sound, haptics, and accessibility polish remain planned.
@@ -138,12 +141,14 @@ PokerTrainer/
     ├── ContentView.swift
     ├── PokerGameManager.swift
     ├── PokerGameEngine.swift
+    ├── MultiplayerPokerEngine.swift
     ├── Card.swift
     ├── Evaluator.swift
     ├── EquityCalculator.swift
     └── Assets.xcassets/
 └── PokerTrainerTests/
     ├── PokerGameEngineTests.swift
+    ├── ThreePlayerGameEngineTests.swift
     ├── EvaluatorTests.swift
     └── EquityCalculatorTests.swift
 ```

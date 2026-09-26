@@ -8,7 +8,7 @@
 | Type | Independent offline iOS project |
 | Stack | Swift, SwiftUI, Swift Concurrency |
 | Focus | Mobile development, poker rules, probability, and game-state design |
-| Status | Tested heads-up prototype; three-player expansion planned |
+| Status | Tested heads-up app; tested three-player core awaiting UI integration |
 
 ## Goal
 
@@ -25,7 +25,8 @@ I created PokerTrainer to explore whether a complete poker practice experience c
 - A simple four-level progression system
 - Background calculation to avoid blocking the main interface
 - A deterministic rules engine with explicit turns, positions, and hand outcomes
-- A 19-test regression suite covering rules, equity, evaluation, and chip conservation
+- A three-seat engine with circular turns, main pots, side pots, and eligibility
+- A 28-test regression suite covering rules, equity, evaluation, and chip conservation
 
 ## Why I chose probability instead of ML
 
@@ -41,7 +42,9 @@ After finishing the first playable version, I reviewed the project instead of pr
 
 The central lesson was that a poker game needs an explicit state machine. Equal bets do not always mean that every player has acted, and an all-in state does not always mean that the hand can immediately proceed to showdown.
 
-I then replaced the original game flow with a deterministic heads-up engine. The new implementation alternates dealer and blind positions, validates actions, preserves responses to all-ins, returns unmatched chips, distinguishes folds from showdowns, rejects stale calculations, and divides tied equity correctly. Nineteen automated tests include a 100-hand chip-conservation run.
+I then replaced the original game flow with a deterministic heads-up engine. The implementation alternates dealer and blind positions, validates actions, preserves responses to all-ins, returns unmatched chips, distinguishes folds from showdowns, rejects stale calculations, and divides tied equity correctly.
+
+The next core iteration introduced a separate three-player engine. It rotates three positions, skips folded or all-in seats correctly, creates pots from contribution levels, prevents folded seats from winning, refunds single-contributor excess, and limits re-raises after short all-ins. Twenty-eight automated tests include 100 heads-up and 60 three-player chip-conservation runs.
 
 The architecture now separates:
 
@@ -52,7 +55,7 @@ The architecture now separates:
 
 ## Planned evolution
 
-The next major version will generalise the engine for a three-player table with main and side pots. Later phases add local continuation, stronger range-aware opponents, and card-and-chip animations. The final product goal is an offline campaign ending in a three-player final table and championship summary.
+The next implementation step connects the tested three-player engine to two asynchronous computer opponents and a three-seat SwiftUI table. Later phases add local continuation, stronger range-aware opponents, and card-and-chip animations.
 
 ## Skills demonstrated
 

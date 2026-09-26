@@ -62,6 +62,20 @@ These findings changed the next priority from visual expansion to a tested poker
 
 The iPhone simulator build and the complete core test suite pass after this stage.
 
+## Stage 8 — Three-player core engine
+
+- Added three rotating seats with dealer, small-blind, and big-blind positions
+- Added circular action order that skips folded and all-in seats
+- Tracked per-seat street bets and total hand contributions
+- Built main pots and side pots from contribution levels
+- Excluded folded seats from pot eligibility
+- Returned a single contributor's unmatched top layer
+- Enforced full-raise and short-all-in reopening rules
+- Added nine three-player tests, including 60 scripted chip-conservation hands
+- Re-ran the playable heads-up app in an iPhone 17 Pro Simulator
+
+The complete suite now contains 28 passing tests. The existing heads-up interface remains unchanged while the three-player core is validated independently.
+
 ## Next stage
 
-Perform physical-device and interaction testing, then generalise the engine for three-player action order, main pots, and side pots before adding persistence or animation.
+Connect two cancellable computer-opponent turns and a three-seat SwiftUI table to the tested engine, then perform physical-device testing before persistence or animation.

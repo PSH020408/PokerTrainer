@@ -29,6 +29,7 @@ let package = Package(
                 "Card.swift",
                 "EquityCalculator.swift",
                 "Evaluator.swift",
+                "MultiplayerPokerEngine.swift",
                 "PokerGameEngine.swift"
             ]
         ),

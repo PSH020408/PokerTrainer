@@ -16,13 +16,15 @@ Completed on 22 September 2026 with an iPhone simulator build and 19 passing cor
 
 **Done when:** every tested hand preserves all cards and chips, every required player acts, and no illegal action reaches the game state.
 
-## Phase 2 — Three-player engine
+## Phase 2 — Three-player engine 🚧
 
-- Replace fixed player/opponent fields with a seat collection
-- Add circular action order
-- Support one player versus two computer opponents
-- Build main pots and side pots from contribution levels
-- Compare two or three eligible hands at showdown
+Core engine completed on 26 September 2026 with nine new tests. SwiftUI and two-opponent coordination remain in progress.
+
+- [x] Replace fixed player/opponent fields with a seat collection
+- [x] Add circular action order
+- [ ] Support one player versus two computer opponents in the playable UI
+- [x] Build main pots and side pots from contribution levels
+- [x] Compare two or three eligible hands at showdown
 
 **Done when:** multiple folds and all-ins settle correctly and the total number of chips never changes.
 
