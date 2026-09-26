@@ -195,7 +195,9 @@ nonisolated struct ThreePlayerGameEngine: Sendable {
             return
         }
 
-        lastMessage = "\(currentActor?.displayName ?? "No seat") acts first pre-flop. Blinds: \(smallBlind)/\(bigBlind)."
+        let actor = currentActor ?? .player
+        let verb = actor == .player ? "act" : "acts"
+        lastMessage = "\(actor.displayName) \(verb) first pre-flop. Blinds: \(smallBlind)/\(bigBlind)."
     }
 
     mutating func perform(_ action: PokerAction, by seat: TableSeat) throws {
@@ -455,7 +457,9 @@ nonisolated struct ThreePlayerGameEngine: Sendable {
             return
         }
 
-        lastMessage = "\(currentStreet.displayName) dealt. \(currentActor?.displayName ?? "No seat") acts first."
+        let actor = currentActor ?? .player
+        let verb = actor == .player ? "act" : "acts"
+        lastMessage = "\(currentStreet.displayName) dealt. \(actor.displayName) \(verb) first."
     }
 
     private mutating func runOutAndShowdown() throws {

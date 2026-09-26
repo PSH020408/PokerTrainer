@@ -8,7 +8,80 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var selectedMode: TableMode?
+
+    var body: some View {
+        Group {
+            switch selectedMode {
+            case .headsUp:
+                HeadsUpTableView {
+                    selectedMode = nil
+                }
+            case .threePlayer:
+                ThreePlayerTableView {
+                    selectedMode = nil
+                }
+            case nil:
+                tableSelection
+            }
+        }
+    }
+
+    private var tableSelection: some View {
+        ZStack {
+            Color(red: 0.1, green: 0.35, blue: 0.18)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                Image(systemName: "suit.spade.fill")
+                    .font(.system(size: 52))
+                    .foregroundColor(.yellow)
+                Text("PokerTrainer")
+                    .font(.largeTitle.bold())
+                    .foregroundColor(.white)
+                Text("Choose a local practice table")
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.8))
+
+                Button {
+                    selectedMode = .headsUp
+                } label: {
+                    tableChoice(title: "1 vs 1", detail: "Progress through the heads-up campaign")
+                }
+
+                Button {
+                    selectedMode = .threePlayer
+                } label: {
+                    tableChoice(title: "1 vs 2", detail: "Practice against two computer opponents")
+                }
+            }
+            .padding(24)
+        }
+    }
+
+    private func tableChoice(title: String, detail: String) -> some View {
+        VStack(spacing: 5) {
+            Text(title)
+                .font(.title2.bold())
+            Text(detail)
+                .font(.footnote)
+        }
+        .foregroundColor(.white)
+        .frame(maxWidth: .infinity)
+        .padding(18)
+        .background(Color.black.opacity(0.38))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private enum TableMode {
+    case headsUp
+    case threePlayer
+}
+
+private struct HeadsUpTableView: View {
     @StateObject private var gameManager = PokerGameManager()
+    let returnToMenu: () -> Void
 
     var body: some View {
         ZStack {
@@ -139,6 +212,13 @@ struct ContentView: View {
                                 .background(Color.yellow)
                                 .cornerRadius(12)
                         }
+                        if gameManager.isHandComplete {
+                            Button("CHANGE TABLE") {
+                                returnToMenu()
+                            }
+                            .font(.footnote.bold())
+                            .foregroundColor(.white)
+                        }
                     } else {
                         HStack(spacing: 6) {
                             Button("FOLD") {
@@ -181,7 +261,9 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            gameManager.startNewHand()
+            if gameManager.game.handNumber == 0 {
+                gameManager.startNewHand()
+            }
         }
     }
 }

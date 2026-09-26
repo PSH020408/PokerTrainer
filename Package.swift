@@ -23,6 +23,8 @@ let package = Package(
                 "Assets.xcassets",
                 "ContentView.swift",
                 "PokerGameManager.swift",
+                "ThreePlayerContentView.swift",
+                "ThreePlayerGameManager.swift",
                 "PokerTrainerApp.swift"
             ],
             sources: [

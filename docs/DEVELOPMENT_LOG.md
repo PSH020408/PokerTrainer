@@ -76,6 +76,17 @@ The iPhone simulator build and the complete core test suite pass after this stag
 
 The complete suite now contains 28 passing tests. The existing heads-up interface remains unchanged while the three-player core is validated independently.
 
+## Stage 9 — Playable three-player table
+
+- Added a start screen for choosing the heads-up or one-versus-two table
+- Connected the three-seat engine to its own SwiftUI table and game manager
+- Coordinated two sequential computer turns with cancellable equity calculations
+- Kept computer cards hidden after folds and revealed live hands at showdown
+- Added a practice-table rebuy for eliminated computer seats and a restart when the player loses all chips
+- Verified the call, raise, fold, all-in, showdown, next-hand, and restart flows in an iPhone 17 Pro Simulator
+
+The three-player table is now playable offline. Core rules remain covered by 28 automated tests; physical-device and long-session testing are still outstanding.
+
 ## Next stage
 
-Connect two cancellable computer-opponent turns and a three-seat SwiftUI table to the tested engine, then perform physical-device testing before persistence or animation.
+Add versioned local save and continue, including restoration of the current turn and remaining deck. Then improve opponent behaviour and add card and chip animations.

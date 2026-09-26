@@ -80,7 +80,8 @@ nonisolated final class EquityCalculator {
         equity: Double,
         potSize: Int,
         callAmount: Int,
-        difficultyLevel: Int
+        difficultyLevel: Int,
+        maximumDelaySeconds: Double = 4.5
     ) async throws -> (action: PokerAction, delaySeconds: Double) {
 
         let noiseFactor: Double
@@ -116,6 +117,7 @@ nonisolated final class EquityCalculator {
             }
         }
 
+        delay = min(delay, max(0, maximumDelaySeconds))
         try await Task.sleep(for: .seconds(delay))
         return (decision, delay)
     }
