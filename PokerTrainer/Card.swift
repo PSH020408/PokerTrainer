@@ -31,7 +31,7 @@ nonisolated struct Card: Codable, Hashable, CustomStringConvertible, Sendable {
 }
 
 // Value-type 52-card deck used for shuffling, dealing, and deterministic tests.
-nonisolated struct Deck: Sendable {
+nonisolated struct Deck: Codable, Sendable {
     private var cards: [Card]
 
     init(shuffled: Bool = true) {
@@ -56,6 +56,10 @@ nonisolated struct Deck: Sendable {
 
     var remainingCount: Int {
         cards.count
+    }
+
+    var remainingCards: [Card] {
+        cards
     }
 
     // Rebuilds and shuffles a complete deck.

@@ -8,7 +8,7 @@
 | Type | Independent offline iOS project |
 | Stack | Swift, SwiftUI, Swift Concurrency |
 | Focus | Mobile development, poker rules, probability, and game-state design |
-| Status | Playable heads-up and one-versus-two tables; 28 core tests passing |
+| Status | Playable heads-up and one-versus-two tables with local continuation; 36 tests passing |
 
 ## Goal
 
@@ -28,7 +28,8 @@ I created PokerTrainer to explore whether a complete poker practice experience c
 - A deterministic rules engine with explicit turns, positions, and hand outcomes
 - A three-seat engine with circular turns, main pots, side pots, and eligibility
 - Cancellable opponent turns, hidden-card rules, and table restart/rebuy flows in the three-player mode
-- A 28-test regression suite covering rules, equity, evaluation, and chip conservation
+- Versioned on-device saves that restore the current turn, remaining deck, chips, and cards
+- A 36-test regression suite covering rules, equity, evaluation, chip conservation, and restoration
 
 ## Why I chose probability instead of ML
 
@@ -46,20 +47,22 @@ The central lesson was that a poker game needs an explicit state machine. Equal 
 
 I then replaced the original game flow with a deterministic heads-up engine. The implementation alternates dealer and blind positions, validates actions, preserves responses to all-ins, returns unmatched chips, distinguishes folds from showdowns, rejects stale calculations, and divides tied equity correctly.
 
-The next core iteration introduced a separate three-player engine. It rotates three positions, skips folded or all-in seats correctly, creates pots from contribution levels, prevents folded seats from winning, refunds single-contributor excess, and limits re-raises after short all-ins. Twenty-eight automated tests include 100 heads-up and 60 three-player chip-conservation runs.
+The next core iteration introduced a separate three-player engine. It rotates three positions, skips folded or all-in seats correctly, creates pots from contribution levels, prevents folded seats from winning, refunds single-contributor excess, and limits re-raises after short all-ins. Automated tests include 100 heads-up and 60 three-player chip-conservation runs.
 
 The three-player engine is now connected to a playable SwiftUI table. I tested both computer turns, a raise response, progression to the flop, a player fold followed by the opponents' showdown, dealer rotation, an all-in result, and table restart in an iPhone 17 Pro Simulator.
+
+I then added separate, versioned local saves for both table modes. Each valid action writes an atomic snapshot; loading validates card uniqueness, chip totals, and turn state before resuming. In the Simulator, I force-closed and reopened both modes and verified that the same cards, chips, street, and available action returned.
 
 The architecture separates:
 
 - A deterministic poker engine
 - Computer-opponent decisions
 - Local save and restore
-- SwiftUI presentation and animation
+- SwiftUI presentation, with animation planned
 
 ## Planned evolution
 
-The next implementation step is local save and continue. Later phases add stronger range-aware opponents, card-and-chip animations, and a longer three-player campaign.
+The next implementation step is stronger range-aware computer opponents. Later phases add card-and-chip animations and a longer three-player campaign.
 
 ## Skills demonstrated
 
@@ -75,7 +78,7 @@ The next implementation step is local save and continue. Later phases add strong
 ## Short portfolio description
 
 **PokerTrainer — Independent iOS Project**  
-Designed and developed an offline SwiftUI Texas Hold'em game with playable heads-up and one-versus-two tables, deterministic betting rules, three-player side pots, best-five-of-seven evaluation, Monte Carlo equity estimation, and explainable rule-based computer opponents. Reproduced defects in the original prototype and implemented explicit turn order, legal action validation, stale-task protection, and 28 automated regression tests.
+Designed and developed an offline SwiftUI Texas Hold'em game with playable heads-up and one-versus-two tables, deterministic betting rules, three-player side pots, best-five-of-seven evaluation, Monte Carlo equity estimation, explainable rule-based computer opponents, and validated local save/continue. Reproduced defects in the original prototype and implemented explicit turn order, legal action validation, stale-task protection, and 36 automated regression tests.
 
 ## Interview summary
 

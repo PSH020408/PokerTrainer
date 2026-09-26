@@ -46,12 +46,12 @@ nonisolated enum PokerAction: Equatable, Sendable {
     case allIn
 }
 
-nonisolated enum HandEndReason: Equatable, Sendable {
+nonisolated enum HandEndReason: Codable, Equatable, Sendable {
     case fold
     case showdown
 }
 
-nonisolated struct HandOutcome: Equatable, Sendable {
+nonisolated struct HandOutcome: Codable, Equatable, Sendable {
     let winner: PokerSeat?
     let reason: HandEndReason
     let awardedPot: Int
@@ -85,7 +85,7 @@ nonisolated enum GameRuleError: Error, Equatable, LocalizedError {
 }
 
 // Deterministic heads-up rules engine. It owns cards, chips, positions, and turn order.
-nonisolated struct HeadsUpGameEngine: Sendable {
+nonisolated struct HeadsUpGameEngine: Codable, Sendable {
     private(set) var playerHand: [Card] = []
     private(set) var opponentHand: [Card] = []
     private(set) var communityCards: [Card] = []
@@ -141,6 +141,80 @@ nonisolated struct HeadsUpGameEngine: Sendable {
 
     var totalChipCount: Int {
         playerStack + opponentStack + potSize
+    }
+
+    // Reject damaged or incompatible local saves before the game manager uses them.
+    func isValidForRestoration() -> Bool {
+        guard smallBlind > 0, bigBlind >= smallBlind,
+              playerStack >= 0, opponentStack >= 0, potSize >= 0,
+              playerCurrentBet >= 0, opponentCurrentBet >= 0,
+              playerCurrentBet + opponentCurrentBet <= potSize,
+              minimumRaiseIncrement >= bigBlind,
+              handNumber >= 0,
+              actedThisRound.isSubset(of: [.player, .opponent]) else {
+            return false
+        }
+
+        let cardsOnTable = playerHand + opponentHand + communityCards
+        let remainingCards = deck.remainingCards
+        guard Set(cardsOnTable).count == cardsOnTable.count,
+              Set(cardsOnTable) == dealtCards,
+              Set(remainingCards).count == remainingCards.count,
+              cardsOnTable.count + remainingCards.count == Deck.standardCards.count,
+              Set(cardsOnTable + remainingCards) == Set(Deck.standardCards) else {
+            return false
+        }
+
+        if handNumber == 0 {
+            return currentActor == nil && handOutcome == nil && cardsOnTable.isEmpty
+                && currentStreet == .showdown && potSize == 0
+                && playerCurrentBet == 0 && opponentCurrentBet == 0
+                && totalChipsAtHandStart == 0
+        }
+
+        guard playerHand.count == 2, opponentHand.count == 2,
+              totalChipCount == totalChipsAtHandStart,
+              nextDealer == dealer.other else {
+            return false
+        }
+
+        let expectedBoardCount: Int
+        switch currentStreet {
+        case .preFlop: expectedBoardCount = 0
+        case .flop: expectedBoardCount = 3
+        case .turn: expectedBoardCount = 4
+        case .river, .showdown: expectedBoardCount = 5
+        }
+        guard communityCards.count == expectedBoardCount else { return false }
+
+        if let outcome = handOutcome {
+            guard currentActor == nil, potSize == 0,
+                  playerCurrentBet == 0, opponentCurrentBet == 0 else {
+                return false
+            }
+            if outcome.reason == .showdown {
+                return currentStreet == .showdown && outcome.winningRank != nil
+            }
+            return currentStreet != .showdown && outcome.winner != nil
+                && outcome.winningRank == nil
+        }
+
+        guard let actor = currentActor, currentStreet != .showdown,
+              (actor == .player ? playerStack : opponentStack) > 0,
+              actedThisRound.count < 2,
+              !actedThisRound.contains(actor) else {
+            return false
+        }
+        if playerCurrentBet > opponentCurrentBet {
+            return actor == .opponent
+        }
+        if opponentCurrentBet > playerCurrentBet {
+            return actor == .player
+        }
+
+        let firstActor = currentStreet == .preFlop ? dealer : dealer.other
+        return actedThisRound.isEmpty ? actor == firstActor
+            : !actedThisRound.contains(actor)
     }
 
     var playerAmountToCall: Int {

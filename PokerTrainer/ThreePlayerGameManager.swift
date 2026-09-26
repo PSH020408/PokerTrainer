@@ -14,14 +14,25 @@ final class ThreePlayerGameManager: ObservableObject {
     @Published private(set) var isOpponentThinking = false
     @Published private(set) var gameMessage = "Preparing the three-player table..."
     @Published private(set) var myEquity = 0.0
+    @Published private(set) var saveWarning: String?
 
     let opponentLevel = 1
 
+    private let store: LocalGameStore
+    private var hasActivated = false
     private var handToken = UUID()
     private var equityRequestToken = UUID()
     private var opponentTurnToken = UUID()
     private var equityTask: Task<Void, Never>?
     private var opponentTask: Task<Void, Never>?
+
+    init(restoring session: ThreePlayerSession? = nil, store: LocalGameStore = .shared) {
+        self.store = store
+        if let session {
+            game = session.game
+            gameMessage = session.gameMessage
+        }
+    }
 
     var playerHand: [Card] { game.state(for: .player).hand }
     var communityCards: [Card] { game.communityCards }
@@ -60,6 +71,18 @@ final class ThreePlayerGameManager: ObservableObject {
         game.handOutcome?.reason == .showdown && !game.state(for: seat).isFolded
     }
 
+    func activate() {
+        guard !hasActivated else { return }
+        hasActivated = true
+
+        if game.handNumber == 0 {
+            startNewHand()
+        } else if !game.isHandComplete {
+            updateEquity()
+            continueGameFlow()
+        }
+    }
+
     func startNewHand() {
         guard game.currentActor == nil else { return }
 
@@ -88,6 +111,7 @@ final class ThreePlayerGameManager: ObservableObject {
             myEquity = 0
             updateEquity()
             continueGameFlow()
+            persist()
         } catch {
             gameMessage = error.localizedDescription
         }
@@ -109,6 +133,7 @@ final class ThreePlayerGameManager: ObservableObject {
             game = nextGame
             gameMessage = game.lastMessage
             processUpdatedGame(previousCommunityCount: previousCommunityCount)
+            persist()
         } catch {
             gameMessage = error.localizedDescription
         }
@@ -217,6 +242,7 @@ final class ThreePlayerGameManager: ObservableObject {
         game = nextGame
         gameMessage = game.lastMessage
         processUpdatedGame(previousCommunityCount: previousCommunityCount)
+        persist()
     }
 
     private func updateEquity() {
@@ -273,6 +299,18 @@ final class ThreePlayerGameManager: ObservableObject {
             $0 != .player && game.state(for: $0).stack == 0
         }) {
             gameMessage += " A defeated opponent will rebuy for the next hand."
+        }
+    }
+
+    private func persist() {
+        do {
+            try store.saveThreePlayer(ThreePlayerSession(
+                game: game,
+                gameMessage: gameMessage
+            ))
+            saveWarning = nil
+        } catch {
+            saveWarning = "Progress could not be saved on this device."
         }
     }
 

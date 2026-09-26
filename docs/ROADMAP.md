@@ -28,12 +28,14 @@ Completed on 26 September 2026 with nine new core tests and an iPhone 17 Pro Sim
 
 **Done when:** multiple folds and all-ins settle correctly, each computer opponent acts on its own turn, and the total number of chips never changes within a hand.
 
-## Phase 3 — Local save and continue
+## Phase 3 — Local save and continue ✅
 
-- Save a versioned snapshot after each completed action
-- Store cards, remaining deck, chip stacks, pots, positions, street, and current turn
-- Add Continue Game and New Game entry points
-- Recover safely from missing or invalid save data
+Completed on 26 September 2026 with eight new tests and force-close/relaunch checks in an iPhone 17 Pro Simulator.
+
+- [x] Save a versioned snapshot after each completed action
+- [x] Store cards, remaining deck, chip stacks, pots, positions, street, and current turn
+- [x] Add Continue Game and New Game entry points
+- [x] Recover safely from missing or invalid save data
 
 **Done when:** force-quitting and reopening restores the same state and legal actions without a network connection.
 

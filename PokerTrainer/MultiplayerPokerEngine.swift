@@ -21,7 +21,7 @@ nonisolated enum TableSeat: Int, CaseIterable, Codable, Hashable, Sendable {
     }
 }
 
-nonisolated struct TablePlayerState: Equatable, Sendable {
+nonisolated struct TablePlayerState: Codable, Equatable, Sendable {
     let seat: TableSeat
     fileprivate(set) var hand: [Card] = []
     fileprivate(set) var stack: Int
@@ -38,12 +38,12 @@ nonisolated struct TablePlayerState: Equatable, Sendable {
     }
 }
 
-nonisolated struct SidePot: Equatable, Sendable {
+nonisolated struct SidePot: Codable, Equatable, Sendable {
     let amount: Int
     let eligibleSeats: Set<TableSeat>
 }
 
-nonisolated struct MultiplayerHandOutcome: Equatable, Sendable {
+nonisolated struct MultiplayerHandOutcome: Codable, Equatable, Sendable {
     let reason: HandEndReason
     let winnings: [TableSeat: Int]
     let refunds: [TableSeat: Int]
@@ -80,7 +80,7 @@ nonisolated enum MultiplayerRuleError: Error, Equatable, LocalizedError {
 }
 
 // Three-seat no-limit Hold'em engine with circular action order and side-pot settlement.
-nonisolated struct ThreePlayerGameEngine: Sendable {
+nonisolated struct ThreePlayerGameEngine: Codable, Sendable {
     private(set) var players: [TableSeat: TablePlayerState]
     private(set) var communityCards: [Card] = []
     private(set) var dealer: TableSeat = .player
@@ -96,7 +96,7 @@ nonisolated struct ThreePlayerGameEngine: Sendable {
     let smallBlind: Int
     let bigBlind: Int
 
-    private let seatOrder = TableSeat.allCases
+    private var seatOrder: [TableSeat] { TableSeat.allCases }
     private var nextDealer: TableSeat
     private var deck = Deck()
     private var dealtCards: Set<Card> = []
@@ -136,6 +136,76 @@ nonisolated struct ThreePlayerGameEngine: Sendable {
 
     var totalChipCount: Int {
         players.values.reduce(potSize) { $0 + $1.stack }
+    }
+
+    // A restored turn must contain the same cards, chips, and legal actors as the saved hand.
+    func isValidForRestoration() -> Bool {
+        guard smallBlind > 0, bigBlind >= smallBlind,
+              minimumRaiseIncrement >= bigBlind,
+              handNumber >= 0,
+              Set(players.keys) == Set(seatOrder),
+              smallBlindSeat == nextSeat(after: dealer),
+              bigBlindSeat == nextSeat(after: smallBlindSeat) else {
+            return false
+        }
+
+        for seat in seatOrder {
+            guard let player = players[seat], player.seat == seat,
+                  player.stack >= 0, player.currentBet >= 0,
+                  player.totalContribution >= player.currentBet else {
+                return false
+            }
+        }
+
+        let cardsOnTable = seatOrder.flatMap { players[$0]?.hand ?? [] } + communityCards
+        let remainingCards = deck.remainingCards
+        guard Set(cardsOnTable).count == cardsOnTable.count,
+              Set(cardsOnTable) == dealtCards,
+              Set(remainingCards).count == remainingCards.count,
+              cardsOnTable.count + remainingCards.count == Deck.standardCards.count,
+              Set(cardsOnTable + remainingCards) == Set(Deck.standardCards),
+              pendingActors.isSubset(of: Set(actionableSeats)),
+              raiseEligibleSeats.isSubset(of: pendingActors) else {
+            return false
+        }
+
+        if handNumber == 0 {
+            return currentActor == nil && handOutcome == nil && cardsOnTable.isEmpty
+                && currentStreet == .showdown && potSize == 0
+                && pendingActors.isEmpty && raiseEligibleSeats.isEmpty
+                && totalChipsAtHandStart == 0
+        }
+
+        guard seatOrder.allSatisfy({ players[$0]?.hand.count == 2 }),
+              totalChipCount == totalChipsAtHandStart,
+              nextDealer == nextSeat(after: dealer) else {
+            return false
+        }
+
+        let expectedBoardCount: Int
+        switch currentStreet {
+        case .preFlop: expectedBoardCount = 0
+        case .flop: expectedBoardCount = 3
+        case .turn: expectedBoardCount = 4
+        case .river, .showdown: expectedBoardCount = 5
+        }
+        guard communityCards.count == expectedBoardCount else { return false }
+
+        if let outcome = handOutcome {
+            guard currentActor == nil, pendingActors.isEmpty,
+                  raiseEligibleSeats.isEmpty, potSize == 0 else {
+                return false
+            }
+            if outcome.reason == .showdown {
+                return currentStreet == .showdown
+                    && Set(outcome.showdownRanks.keys) == Set(liveSeats)
+            }
+            return currentStreet != .showdown && liveSeats.count == 1
+        }
+
+        guard let actor = currentActor else { return false }
+        return liveSeats.count >= 2 && pendingActors.contains(actor)
+            && currentStreet != .showdown
     }
 
     var liveSeats: [TableSeat] {

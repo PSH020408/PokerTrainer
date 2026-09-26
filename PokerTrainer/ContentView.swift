@@ -8,22 +8,45 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var selectedMode: TableMode?
+    @State private var selectedMode: PracticeMode?
+    @State private var resumingSavedGame = false
+    @State private var headsUpSave: HeadsUpSession?
+    @State private var threePlayerSave: ThreePlayerSession?
+    @State private var saveLoadWarning: String?
+    @State private var pendingNewMode: PracticeMode?
+    @State private var isShowingReplaceConfirmation = false
 
     var body: some View {
         Group {
             switch selectedMode {
             case .headsUp:
-                HeadsUpTableView {
+                HeadsUpTableView(restoring: resumingSavedGame ? headsUpSave : nil) {
                     selectedMode = nil
                 }
             case .threePlayer:
-                ThreePlayerTableView {
+                ThreePlayerTableView(restoring: resumingSavedGame ? threePlayerSave : nil) {
                     selectedMode = nil
                 }
             case nil:
                 tableSelection
             }
+        }
+        .confirmationDialog(
+            "Replace saved game?",
+            isPresented: $isShowingReplaceConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Start New Game", role: .destructive) {
+                if let mode = pendingNewMode {
+                    openTable(mode, resume: false)
+                }
+                pendingNewMode = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingNewMode = nil
+            }
+        } message: {
+            Text("This will replace the saved progress for this table.")
         }
     }
 
@@ -42,29 +65,75 @@ struct ContentView: View {
                 Text("Choose a local practice table")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.8))
+                Text("Your progress is saved automatically on this iPhone.")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
 
-                Button {
-                    selectedMode = .headsUp
-                } label: {
-                    tableChoice(title: "1 vs 1", detail: "Progress through the heads-up campaign")
-                }
+                tableChoice(
+                    mode: .headsUp,
+                    title: "1 vs 1",
+                    detail: "Heads-up campaign",
+                    savedHand: headsUpSave?.game.handNumber,
+                    savedStreet: headsUpSave?.game.currentStreet,
+                    savedHandComplete: headsUpSave?.game.isHandComplete ?? false
+                )
+                tableChoice(
+                    mode: .threePlayer,
+                    title: "1 vs 2",
+                    detail: "Two computer opponents",
+                    savedHand: threePlayerSave?.game.handNumber,
+                    savedStreet: threePlayerSave?.game.currentStreet,
+                    savedHandComplete: threePlayerSave?.game.isHandComplete ?? false
+                )
 
-                Button {
-                    selectedMode = .threePlayer
-                } label: {
-                    tableChoice(title: "1 vs 2", detail: "Practice against two computer opponents")
+                if let saveLoadWarning {
+                    Text(saveLoadWarning)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .multilineTextAlignment(.center)
                 }
             }
             .padding(24)
         }
+        .onAppear(perform: refreshSaveStatus)
     }
 
-    private func tableChoice(title: String, detail: String) -> some View {
-        VStack(spacing: 5) {
+    private func tableChoice(
+        mode: PracticeMode,
+        title: String,
+        detail: String,
+        savedHand: Int?,
+        savedStreet: GameStreet?,
+        savedHandComplete: Bool
+    ) -> some View {
+        VStack(spacing: 8) {
             Text(title)
                 .font(.title2.bold())
             Text(detail)
                 .font(.footnote)
+            if let savedHand, let savedStreet {
+                Text("Saved hand \(savedHand) · \(savedHandComplete ? "Complete" : savedStreet.displayName)")
+                    .font(.caption)
+                    .foregroundColor(.yellow)
+
+                HStack(spacing: 10) {
+                    Button("CONTINUE") {
+                        openTable(mode, resume: true)
+                    }
+                    .buttonStyle(ActionButtonStyle(color: .green))
+
+                    Button("NEW GAME") {
+                        pendingNewMode = mode
+                        isShowingReplaceConfirmation = true
+                    }
+                    .buttonStyle(ActionButtonStyle(color: .gray))
+                }
+            } else {
+                Button("START") {
+                    openTable(mode, resume: false)
+                }
+                .buttonStyle(ActionButtonStyle(color: .green))
+            }
         }
         .foregroundColor(.white)
         .frame(maxWidth: .infinity)
@@ -72,16 +141,42 @@ struct ContentView: View {
         .background(Color.black.opacity(0.38))
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
-}
 
-private enum TableMode {
-    case headsUp
-    case threePlayer
+    private func openTable(_ mode: PracticeMode, resume: Bool) {
+        resumingSavedGame = resume
+        selectedMode = mode
+    }
+
+    private func refreshSaveStatus() {
+        var warnings: [String] = []
+
+        do {
+            headsUpSave = try LocalGameStore.shared.loadHeadsUp()
+        } catch {
+            headsUpSave = nil
+            warnings.append("1 vs 1 save unavailable")
+        }
+
+        do {
+            threePlayerSave = try LocalGameStore.shared.loadThreePlayer()
+        } catch {
+            threePlayerSave = nil
+            warnings.append("1 vs 2 save unavailable")
+        }
+
+        saveLoadWarning = warnings.isEmpty ? nil
+            : warnings.joined(separator: ". ") + ". Start a new game to replace it."
+    }
 }
 
 private struct HeadsUpTableView: View {
-    @StateObject private var gameManager = PokerGameManager()
+    @StateObject private var gameManager: PokerGameManager
     let returnToMenu: () -> Void
+
+    init(restoring session: HeadsUpSession?, returnToMenu: @escaping () -> Void) {
+        _gameManager = StateObject(wrappedValue: PokerGameManager(restoring: session))
+        self.returnToMenu = returnToMenu
+    }
 
     var body: some View {
         ZStack {
@@ -192,6 +287,12 @@ private struct HeadsUpTableView: View {
                     .background(Color.black.opacity(0.4))
                     .cornerRadius(8)
 
+                    if let warning = gameManager.saveWarning {
+                        Text(warning)
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
+
                     // Player's two private cards.
                     HStack {
                         ForEach(gameManager.playerHand, id: \.description) { card in
@@ -261,9 +362,7 @@ private struct HeadsUpTableView: View {
             }
         }
         .onAppear {
-            if gameManager.game.handNumber == 0 {
-                gameManager.startNewHand()
-            }
+            gameManager.activate()
         }
     }
 }

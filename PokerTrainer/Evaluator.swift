@@ -8,7 +8,7 @@
 import Foundation
 
 // Poker hand categories ordered from weakest to strongest.
-nonisolated enum HandRank: Int, Comparable, Sendable {
+nonisolated enum HandRank: Int, Codable, Comparable, Sendable {
     case highCard = 1
     case onePair
     case twoPair

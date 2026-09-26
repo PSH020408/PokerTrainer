@@ -8,8 +8,13 @@
 import SwiftUI
 
 struct ThreePlayerTableView: View {
-    @StateObject private var gameManager = ThreePlayerGameManager()
+    @StateObject private var gameManager: ThreePlayerGameManager
     let returnToMenu: () -> Void
+
+    init(restoring session: ThreePlayerSession?, returnToMenu: @escaping () -> Void) {
+        _gameManager = StateObject(wrappedValue: ThreePlayerGameManager(restoring: session))
+        self.returnToMenu = returnToMenu
+    }
 
     var body: some View {
         ZStack {
@@ -33,9 +38,7 @@ struct ThreePlayerTableView: View {
             .padding(.vertical, 8)
         }
         .onAppear {
-            if gameManager.game.handNumber == 0 {
-                gameManager.startNewHand()
-            }
+            gameManager.activate()
         }
     }
 
@@ -167,6 +170,12 @@ struct ThreePlayerTableView: View {
                 .padding(8)
                 .background(Color.black.opacity(0.3))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            if let warning = gameManager.saveWarning {
+                Text(warning)
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+            }
 
             if gameManager.isHandComplete || gameManager.playerHand.isEmpty {
                 Button {

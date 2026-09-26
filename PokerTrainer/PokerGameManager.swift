@@ -16,13 +16,26 @@ final class PokerGameManager: ObservableObject {
     @Published private(set) var gameMessage: String = "Preparing the game..."
     @Published private(set) var myEquity: Double = 0.0
     @Published private(set) var campaignWon: Bool = false
+    @Published private(set) var saveWarning: String?
 
     private let maximumOpponentLevel = 4
+    private let store: LocalGameStore
+    private var hasActivated = false
     private var handToken = UUID()
     private var equityRequestToken = UUID()
     private var opponentTurnToken = UUID()
     private var equityTask: Task<Void, Never>?
     private var opponentTask: Task<Void, Never>?
+
+    init(restoring session: HeadsUpSession? = nil, store: LocalGameStore = .shared) {
+        self.store = store
+        if let session {
+            game = session.game
+            opponentLevel = session.opponentLevel
+            campaignWon = session.campaignWon
+            gameMessage = session.gameMessage
+        }
+    }
 
     var playerHand: [Card] { game.playerHand }
     var opponentHand: [Card] { game.opponentHand }
@@ -57,22 +70,56 @@ final class PokerGameManager: ObservableObject {
         return "START NEXT HAND ♠️"
     }
 
+    func activate() {
+        guard !hasActivated else { return }
+        hasActivated = true
+
+        if game.handNumber == 0 {
+            startNewHand()
+        } else if game.isHandComplete {
+            if let outcome = game.handOutcome, outcome.reason == .showdown {
+                myEquity = outcome.winner == .player ? 100.0
+                    : outcome.winner == .opponent ? 0.0 : 50.0
+            }
+        } else {
+            updateEquity()
+            continueGameFlow()
+        }
+    }
+
     func startNewHand() {
         guard game.currentActor == nil else { return }
 
         cancelPendingWork()
 
         do {
-            try prepareCampaignForNextHand()
             var nextGame = game
+            var nextLevel = opponentLevel
+            var nextCampaignWon = campaignWon
+
+            if campaignWon || nextGame.playerStack == 0 {
+                nextLevel = 1
+                nextCampaignWon = false
+                try nextGame.replaceStacks(player: 1_000, opponent: 1_000)
+            } else if nextGame.opponentStack == 0 {
+                nextLevel = min(maximumOpponentLevel, opponentLevel + 1)
+                try nextGame.replaceStacks(
+                    player: nextGame.playerStack,
+                    opponent: 1_000 * nextLevel
+                )
+            }
+
             try nextGame.startHand()
             game = nextGame
+            opponentLevel = nextLevel
+            campaignWon = nextCampaignWon
 
             handToken = UUID()
             gameMessage = game.lastMessage
             myEquity = 0.0
             updateEquity()
             continueGameFlow()
+            persist()
         } catch {
             gameMessage = error.localizedDescription
         }
@@ -100,6 +147,7 @@ final class PokerGameManager: ObservableObject {
             game = nextGame
             gameMessage = game.lastMessage
             processUpdatedGame(previousCommunityCount: previousCommunityCount)
+            persist()
         } catch {
             gameMessage = error.localizedDescription
         }
@@ -200,6 +248,7 @@ final class PokerGameManager: ObservableObject {
         game = nextGame
         gameMessage = game.lastMessage
         processUpdatedGame(previousCommunityCount: previousCommunityCount)
+        persist()
     }
 
     private func updateEquity() {
@@ -263,25 +312,18 @@ final class PokerGameManager: ObservableObject {
         }
     }
 
-    private func prepareCampaignForNextHand() throws {
-        var nextGame = game
-
-        if campaignWon {
-            opponentLevel = 1
-            campaignWon = false
-            try nextGame.replaceStacks(player: 1_000, opponent: 1_000)
-        } else if nextGame.playerStack == 0 {
-            opponentLevel = 1
-            try nextGame.replaceStacks(player: 1_000, opponent: 1_000)
-        } else if nextGame.opponentStack == 0 {
-            opponentLevel = min(maximumOpponentLevel, opponentLevel + 1)
-            try nextGame.replaceStacks(
-                player: nextGame.playerStack,
-                opponent: 1_000 * opponentLevel
-            )
+    private func persist() {
+        do {
+            try store.saveHeadsUp(HeadsUpSession(
+                game: game,
+                opponentLevel: opponentLevel,
+                campaignWon: campaignWon,
+                gameMessage: gameMessage
+            ))
+            saveWarning = nil
+        } catch {
+            saveWarning = "Progress could not be saved on this device."
         }
-
-        game = nextGame
     }
 
     private func cancelPendingWork() {

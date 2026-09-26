@@ -10,7 +10,7 @@ PokerTrainer is a personal SwiftUI project in which the player competes against 
 
 ## Current status
 
-The repository contains playable heads-up and one-versus-two tables. Both deal cards, validate actions, estimate equity locally, compare final hands, settle chips, and rotate positions. The heads-up campaign advances through four opponent levels; the three-player table is currently a Level 1 practice mode.
+The repository contains playable heads-up and one-versus-two tables. Both deal cards, validate actions, estimate equity locally, compare final hands, settle chips, rotate positions, and save progress on the iPhone. The heads-up campaign advances through four opponent levels; the three-player table is currently a Level 1 practice mode.
 
 The first technical review found important betting, all-in, tie-equity, hidden-card, and asynchronous-state problems. Phase 1 replaced the original flow with a deterministic heads-up engine. Phase 2 added a separate three-seat engine, side-pot settlement, two coordinated computer turns, and a playable SwiftUI table.
 
@@ -27,6 +27,7 @@ The first technical review found important betting, all-in, tie-equity, hidden-c
 - Rule-based computer opponents; four-level progression in heads-up mode
 - Chip stacks, pot settlement, and level progression
 - Three-player main pots, side pots, and opponent rebuys between hands
+- Automatic local save after every valid action, with Continue and New Game choices for each table
 - Championship completion and campaign restart
 - Automated engine, evaluator, and equity tests
 - No network or third-party dependency
@@ -75,9 +76,10 @@ ContentView ──────────── Table selection
       └── ThreePlayerTableView ─ ThreePlayerGameManager ─ ThreePlayerGameEngine
                                              │
                   Shared Deck, Evaluator, and EquityCalculator
+                  LocalGameStore: versioned, validated, atomic saves
 ```
 
-Each deterministic engine decides what happened. Its manager coordinates computer decisions and cancellable calculations, while SwiftUI presents validated state transitions. Persistence and animation remain separate future layers.
+Each deterministic engine decides what happened. Its manager coordinates computer decisions, cancellable calculations, and local saves, while SwiftUI presents validated state transitions. The saved snapshot includes the remaining deck, cards, chips, positions, betting state, and current actor. Animation remains a future layer.
 
 ## Phase 1 corrections
 
@@ -90,12 +92,12 @@ Each deterministic engine decides what happened. Its manager coordinates compute
 | An older calculation could overwrite a new one | Hand and request tokens reject stale results |
 | A fold could reveal hidden cards | Fold and showdown outcomes are represented separately |
 
-The Swift Package test target currently contains 28 regression tests. They include 100 scripted heads-up hands and 60 scripted three-player hands that verify chip conservation after every action. This does not prove that the app is bug-free, but it gives the core rules a repeatable safety net.
+The Swift Package test target currently contains 36 regression tests. They include 100 scripted heads-up hands, 60 scripted three-player hands, and save/restore checks for turn order, deck continuity, mode independence, and damaged files. This does not prove that the app is bug-free, but it gives the core rules a repeatable safety net.
 
 ## Current limitations
 
 - The three-player table currently uses the Level 1 decision policy and refills eliminated computer opponents between hands; its longer campaign is planned.
-- Saved games and Continue Game are not implemented yet.
+- Saves stay inside the app's local container; uninstalling the app removes them. Cross-device sync is not implemented.
 - The computer policy remains equity- and pot-odds-based rather than range-aware.
 - Card and chip animations, sound, haptics, and accessibility polish remain planned.
 - Physical-device and long-session validation are still required before release.
@@ -109,7 +111,6 @@ The target version will include:
 - Heads-up and player-versus-two-computer tables
 - Main-pot and side-pot support
 - Stronger range- and position-aware computer opponents
-- Automatic local save and Continue Game support
 - Card dealing, card flip, chip movement, and pot-award animations
 - A final-table victory sequence and campaign restart
 - Hand history and decision feedback for solo practice
@@ -135,6 +136,7 @@ PokerTrainer/
     ├── ThreePlayerGameManager.swift
     ├── PokerGameEngine.swift
     ├── MultiplayerPokerEngine.swift
+    ├── LocalGameStore.swift
     ├── Card.swift
     ├── Evaluator.swift
     ├── EquityCalculator.swift
@@ -142,6 +144,7 @@ PokerTrainer/
 └── PokerTrainerTests/
     ├── PokerGameEngineTests.swift
     ├── ThreePlayerGameEngineTests.swift
+    ├── LocalGameStoreTests.swift
     ├── EvaluatorTests.swift
     └── EquityCalculatorTests.swift
 ```
@@ -153,7 +156,7 @@ PokerTrainer/
 3. Select the `PokerTrainer` scheme.
 4. Choose an iPhone simulator or connected iPhone.
 5. Select your development team if physical-device signing is required.
-6. Build, run, and choose a 1 vs 1 or 1 vs 2 table.
+6. Build and run. Start a new 1 vs 1 or 1 vs 2 game, or continue a saved table.
 
 To run the core regression suite from Terminal:
 

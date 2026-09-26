@@ -87,6 +87,18 @@ The complete suite now contains 28 passing tests. The existing heads-up interfac
 
 The three-player table is now playable offline. Core rules remain covered by 28 automated tests; physical-device and long-session testing are still outstanding.
 
+## Stage 10 — Local save and continue
+
+- Added separate versioned saves for the heads-up and three-player tables
+- Saved after each valid player or computer action and each new hand
+- Restored the remaining deck, private and community cards, chip stacks, betting state, and current actor
+- Validated chip and card invariants before loading a snapshot
+- Added Continue and New Game choices, with confirmation before replacing existing progress
+- Added eight regression tests for restoration, independent modes, and invalid files
+- Force-closed and reopened both modes in an iPhone 17 Pro Simulator to check the visible game state
+
+The suite now contains 36 passing tests. Save files remain on the device and are removed if the app is uninstalled.
+
 ## Next stage
 
-Add versioned local save and continue, including restoration of the current turn and remaining deck. Then improve opponent behaviour and add card and chip animations.
+Improve the computer opponents with position-aware starting ranges, board context, and measured difficulty differences. Then add card and chip animations without changing the tested rules state.
