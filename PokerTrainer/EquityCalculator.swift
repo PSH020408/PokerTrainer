@@ -21,6 +21,24 @@ nonisolated final class EquityCalculator {
         activePlayersCount: Int,
         simulations: Int = 5000
     ) -> Double {
+        var generator = SystemRandomNumberGenerator()
+        return calculateEquity(
+            playerHand: playerHand,
+            communityCards: communityCards,
+            activePlayersCount: activePlayersCount,
+            simulations: simulations,
+            using: &generator
+        )
+    }
+
+    // An injected generator makes repeated policy comparisons reproducible.
+    nonisolated static func calculateEquity<R: RandomNumberGenerator>(
+        playerHand: [Card],
+        communityCards: [Card],
+        activePlayersCount: Int,
+        simulations: Int,
+        using generator: inout R
+    ) -> Double {
         guard simulations > 0,
               activePlayersCount >= 2,
               playerHand.count == 2,
@@ -47,7 +65,7 @@ nonisolated final class EquityCalculator {
                 break
             }
 
-            let remainingCards = availableCards.shuffled()
+            let remainingCards = availableCards.shuffled(using: &generator)
             var nextCardIndex = 0
 
             var simCommunity = communityCards

@@ -12,6 +12,7 @@
 - [x] Capped within-level blind increases, with backward-compatible saved campaigns.
 - [x] Random-deal iPhone Simulator championships in both 1 vs 1 and 1 vs 2.
 - [x] View-only card, chip, and pot-award effects with Reduced Motion support.
+- [x] Reproducible, paired-deal 1 vs 1 and 1 vs 2 level benchmarks against a fixed check/call player.
 
 ## Next: measured quality
 
@@ -19,7 +20,7 @@
 - [x] Verify two-seat play, blind rotation, save/relaunch, level transitions, and restart across direct-play sessions.
 - [ ] Visually review effect timing and Reduced Motion on both table layouts and small screens.
 - [ ] Record and fix any reproducible defects; keep regression tests for them.
-- [ ] Compare opponent levels using repeated simulated hands, not subjective labels alone.
+- [ ] Repeat difficulty comparisons against varied player policies and production-length equity estimates before claiming general strength gains.
 
 ## Presentation and release quality
 

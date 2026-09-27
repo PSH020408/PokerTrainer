@@ -14,7 +14,7 @@ An offline Texas Hold'em game for iPhone, designed and developed by **PARK, SEHO
 - Local, versioned save/continue after each action. In 1 vs 2, an eliminated opponent sits out until the next level; the two remaining seats play heads-up.
 - On-device Monte Carlo equity estimation and rule-based opponents whose position, board-context, bet sizing, and playing personality vary by level.
 - Lightweight card-dealing, showdown-flip, chip-contribution, and pot-award effects. Reduced Motion disables the effects.
-- 60 automated core tests pass. Both four-level campaigns have been won with random deals by directly operating an iPhone Simulator; the 1 vs 2 victory ended with both opponents out and 21,000 chips.
+- 61 default core tests pass, with two opt-in difficulty benchmarks. Both four-level campaigns have been won with random deals by directly operating an iPhone Simulator; the 1 vs 2 victory ended with both opponents out and 21,000 chips.
 
 The UI uses chips, not money. The displayed “random-hand equity” estimates results against uniformly sampled unknown hands. It does **not** predict an opponent's actual betting range or guarantee a win.
 
@@ -46,10 +46,17 @@ Run the core regression suite with:
 swift test
 ```
 
+To repeat the exploratory level comparison on the same seeded deals in both modes:
+
+```bash
+POKERTRAINER_BENCHMARK=1 swift test --filter OpponentDifficultyBenchmarkTests
+```
+
 ## Limitations and next work
 
 - Visually check animation timing and Reduced Motion on more iPhone sizes; the effects do not alter rules or saved state.
-- Measure difficulty and performance on physical iPhones; add accessibility and hand-history polish.
+- The initial difficulty comparison uses a fixed check/call player and short equity estimates; it is not a general strength rating. Repeat with varied playing styles and production-length estimates.
+- Profile performance on physical iPhones; add accessibility and hand-history polish.
 - Local saves are removed when the app is uninstalled. There is no cloud synchronization.
 
 See the [portfolio summary](docs/PORTFOLIO.md), [development log](docs/DEVELOPMENT_LOG.md), and [roadmap](docs/ROADMAP.md).
