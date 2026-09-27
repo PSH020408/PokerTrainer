@@ -8,12 +8,13 @@ An offline Texas Hold'em game for iPhone, designed and developed by **PARK, SEHO
 
 ## Current build
 
-- Playable 1 vs 1 and 1 vs 2 SwiftUI tables with separate four-level campaigns; 1 vs 2 blinds increase by level and every 12 completed hands (capped at two extra increases per level).
+- Playable 1 vs 1 and 1 vs 2 SwiftUI tables with separate four-level campaigns; 1 vs 2 blinds increase by level and every 12 completed hands (capped at five extra increases per level).
 - Standard 52-card Hold'em dealing; dealer and blind rotation; check, call, raise, fold, and all-in actions.
 - Best-five-of-seven hand evaluation, kickers, ace-low straights, ties, main/side pots, and unmatched-chip refunds.
 - Local, versioned save/continue after each action. In 1 vs 2, an eliminated opponent sits out until the next level; the two remaining seats play heads-up.
 - On-device Monte Carlo equity estimation and rule-based opponents whose position, board-context, bet sizing, and playing personality vary by level.
-- 60 automated core tests pass. A full 1 vs 1 championship has also been won by operating the iPhone Simulator. The 1 vs 2 campaign has been played through Level 2 and into Level 3; its full random-deal Simulator victory is **not yet verified**.
+- Lightweight card-dealing, showdown-flip, chip-contribution, and pot-award effects. Reduced Motion disables the effects.
+- 60 automated core tests pass. Both four-level campaigns have been won with random deals by directly operating an iPhone Simulator; the 1 vs 2 victory ended with both opponents out and 21,000 chips.
 
 The UI uses chips, not money. The displayed “random-hand equity” estimates results against uniformly sampled unknown hands. It does **not** predict an opponent's actual betting range or guarantee a win.
 
@@ -47,8 +48,7 @@ swift test
 
 ## Limitations and next work
 
-- Finish and document an end-to-end, random-deal 1 vs 2 Simulator victory; two-seat play after elimination has already been checked through save/relaunch.
-- Add card-dealing, flipping, chip movement, and pot-award animations, with reduced-motion support.
+- Visually check animation timing and Reduced Motion on more iPhone sizes; the effects do not alter rules or saved state.
 - Measure difficulty and performance on physical iPhones; add accessibility and hand-history polish.
 - Local saves are removed when the app is uninstalled. There is no cloud synchronization.
 

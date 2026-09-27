@@ -8,12 +8,21 @@
 import SwiftUI
 
 struct ThreePlayerTableView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var gameManager: ThreePlayerGameManager
     let returnToMenu: () -> Void
 
     init(restoring session: ThreePlayerSession?, returnToMenu: @escaping () -> Void) {
         _gameManager = StateObject(wrappedValue: ThreePlayerGameManager(restoring: session))
         self.returnToMenu = returnToMenu
+    }
+
+    private var dealAnimation: Animation? {
+        reduceMotion ? nil : .easeOut(duration: 0.28)
+    }
+
+    private var cardTransition: AnyTransition {
+        reduceMotion ? .identity : .offset(y: -20).combined(with: .opacity)
     }
 
     var body: some View {
@@ -85,21 +94,26 @@ struct ThreePlayerTableView: View {
                  : "\(player.stack) chips · \(positionLabel(for: seat))")
                 .font(.caption2)
                 .foregroundColor(.white.opacity(0.8))
+                .contentTransition(.numericText())
+                .animation(dealAnimation, value: player.stack)
 
             HStack(spacing: 4) {
                 if player.hand.isEmpty {
                     Text("OUT")
                         .font(.caption.bold())
                         .foregroundColor(.white.opacity(0.7))
-                } else if gameManager.shouldRevealCards(for: seat) {
-                    ForEach(player.hand, id: \.description) { card in
-                        CardView(card: card)
-                    }
                 } else {
-                    CardBackView()
-                    CardBackView()
+                    ForEach(Array(player.hand.enumerated()), id: \.offset) { index, card in
+                        FlippingCardView(
+                            card: card,
+                            faceUp: gameManager.shouldRevealCards(for: seat)
+                        )
+                        .id("\(seat.rawValue)-\(gameManager.game.handNumber)-\(index)")
+                        .transition(cardTransition)
+                    }
                 }
             }
+            .animation(dealAnimation, value: gameManager.game.handNumber)
 
             Text(player.hand.isEmpty ? "ELIMINATED" :
                 player.isFolded ? "FOLDED" :
@@ -127,11 +141,39 @@ struct ThreePlayerTableView: View {
                 .padding(.vertical, 6)
                 .background(Color.black.opacity(0.5))
                 .clipShape(Capsule())
+                .contentTransition(.numericText())
+                .animation(dealAnimation, value: gameManager.displayedPotSize)
+                .overlay {
+                    ChipFlowEffect(
+                        stack: gameManager.playerStack,
+                        handComplete: gameManager.isHandComplete,
+                        sourceX: 0,
+                        sourceY: 70
+                    )
+                }
+                .overlay {
+                    ChipFlowEffect(
+                        stack: gameManager.state(for: .opponentOne).stack,
+                        handComplete: gameManager.isHandComplete,
+                        sourceX: -24,
+                        sourceY: -70
+                    )
+                }
+                .overlay {
+                    ChipFlowEffect(
+                        stack: gameManager.state(for: .opponentTwo).stack,
+                        handComplete: gameManager.isHandComplete,
+                        sourceX: 24,
+                        sourceY: -70
+                    )
+                }
 
             HStack(spacing: 5) {
                 ForEach(0..<5, id: \.self) { index in
                     if index < gameManager.communityCards.count {
                         CardView(card: gameManager.communityCards[index])
+                            .id("board-\(gameManager.game.handNumber)-\(index)")
+                            .transition(cardTransition)
                     } else {
                         RoundedRectangle(cornerRadius: 6)
                             .fill(Color.white.opacity(0.12))
@@ -139,6 +181,8 @@ struct ThreePlayerTableView: View {
                     }
                 }
             }
+            .animation(dealAnimation, value: gameManager.communityCards.count)
+            .animation(dealAnimation, value: gameManager.game.handNumber)
         }
     }
 
@@ -148,6 +192,8 @@ struct ThreePlayerTableView: View {
                 Text("You · \(gameManager.playerStack) chips · \(positionLabel(for: .player))")
                     .font(.subheadline.bold())
                     .foregroundColor(.white)
+                    .contentTransition(.numericText())
+                    .animation(dealAnimation, value: gameManager.playerStack)
                 Spacer()
                 if gameManager.currentActor == .player {
                     Text("YOUR TURN")
@@ -157,8 +203,10 @@ struct ThreePlayerTableView: View {
             }
 
             HStack(spacing: 6) {
-                ForEach(gameManager.playerHand, id: \.description) { card in
+                ForEach(Array(gameManager.playerHand.enumerated()), id: \.offset) { index, card in
                     CardView(card: card)
+                        .id("player-\(gameManager.game.handNumber)-\(index)")
+                        .transition(cardTransition)
                 }
                 Spacer()
                 if !gameManager.isHandComplete,
@@ -174,6 +222,7 @@ struct ThreePlayerTableView: View {
                     }
                 }
             }
+            .animation(dealAnimation, value: gameManager.game.handNumber)
 
             Text(gameManager.gameMessage)
                 .font(.caption)
@@ -218,6 +267,14 @@ struct ThreePlayerTableView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    private var smallRaiseAmount: Int {
+        max(gameManager.game.minimumRaiseAmount, max(gameManager.potSize / 2, 50))
+    }
+
+    private var largeRaiseAmount: Int {
+        max(gameManager.game.minimumRaiseAmount, max(gameManager.potSize, 100))
+    }
+
     private var actionControls: some View {
         VStack(spacing: 7) {
             HStack(spacing: 7) {
@@ -241,13 +298,13 @@ struct ThreePlayerTableView: View {
             }
 
             HStack(spacing: 7) {
-                Button("1/2 POT") {
-                    gameManager.playerAction(.raise(amount: max(gameManager.potSize / 2, 50)))
+                Button("RAISE +\(smallRaiseAmount)") {
+                    gameManager.playerAction(.raise(amount: smallRaiseAmount))
                 }
                 .buttonStyle(ActionButtonStyle(color: .orange))
 
-                Button("POT") {
-                    gameManager.playerAction(.raise(amount: max(gameManager.potSize, 100)))
+                Button("RAISE +\(largeRaiseAmount)") {
+                    gameManager.playerAction(.raise(amount: largeRaiseAmount))
                 }
                 .buttonStyle(ActionButtonStyle(color: .red))
             }

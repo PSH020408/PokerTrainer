@@ -10,18 +10,21 @@
 - [x] Tournament-style 1 vs 2 elimination, rather than automatically rebuying a busted opponent each hand.
 - [x] Level-based 1 vs 2 blinds to prevent an unchanging, slow chip structure.
 - [x] Capped within-level blind increases, with backward-compatible saved campaigns.
+- [x] Random-deal iPhone Simulator championships in both 1 vs 1 and 1 vs 2.
+- [x] View-only card, chip, and pot-award effects with Reduced Motion support.
 
-## Next: end-to-end 1 vs 2 validation
+## Next: measured quality
 
-- [ ] Play a random-deal 1 vs 2 campaign to the final victory screen in the iPhone Simulator.
-- [ ] Verify the post-elimination two-seat UI, blind rotation, save/relaunch, level transition, and restart in the same run.
+- [x] Play a random-deal 1 vs 2 campaign to the final victory screen in the iPhone Simulator.
+- [x] Verify two-seat play, blind rotation, save/relaunch, level transitions, and restart across direct-play sessions.
+- [ ] Visually review effect timing and Reduced Motion on both table layouts and small screens.
 - [ ] Record and fix any reproducible defects; keep regression tests for them.
 - [ ] Compare opponent levels using repeated simulated hands, not subjective labels alone.
 
 ## Presentation and release quality
 
-- [ ] Animate card dealing, card flips, chip contributions, and pot awards without changing engine state.
-- [ ] Support reduced motion, clear accessibility labels, optional sound/haptics, and small-screen layouts.
+- [x] Animate card dealing, card flips, chip contributions, and pot awards without changing engine state.
+- [ ] Complete accessibility review, optional sound/haptics, and small-screen layouts.
 - [ ] Add hand history and solo-practice feedback.
 - [ ] Profile performance and battery use on a physical iPhone; test background restoration and long sessions.
 - [ ] Prepare App Store screenshots, icon variants, and a short gameplay recording.

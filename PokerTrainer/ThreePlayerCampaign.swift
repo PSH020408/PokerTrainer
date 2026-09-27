@@ -61,7 +61,9 @@ nonisolated struct ThreePlayerCampaign: Codable, Equatable, Sendable {
     }
 
     var blindMultiplier: Int {
-        1 << (level - 1 + min(handsCompletedAtLevel / 12, 2))
+        // Continue escalating a long level until the remaining stacks are
+        // forced into decisive pots, while keeping the multiplier bounded.
+        1 << (level - 1 + min(handsCompletedAtLevel / 12, 5))
     }
 
     var isLevelCleared: Bool {

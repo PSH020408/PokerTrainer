@@ -16,13 +16,14 @@ I wanted to turn a small poker prototype into a local game that works without an
 - A best-five-of-seven evaluator and on-device Monte Carlo equity estimator.
 - Four difficulty levels. A rule-based decision policy uses estimated equity, pot odds, position, board texture, pressure, bet sizing, and different opponent personalities.
 - Two SwiftUI tables, independent campaigns, local save/continue, and a final championship state. In 1 vs 2, a busted opponent remains eliminated during that level.
+- Presentation-only card and chip effects, including a showdown flip and a Reduced Motion path.
 - 60 automated tests for rules, chip conservation, opponent actions, campaign progression, and save restoration.
 
 ## Engineering process
 
 The first prototype exposed betting-round, all-in, hidden-card, tie-equity, and stale-background-work defects. I separated rules from presentation, made actions explicit state transitions, and wrote regression tests before expanding features. Extended Simulator play exposed a further design flaw: a defeated opponent was automatically rebought every hand. I replaced that with tournament elimination and two-seat continuation. Live play also found an overstated fold-pot display, caused by including an uncalled all-in wager; the engine now refunds that amount before reporting the contested pot.
 
-I verified the complete 1 vs 1 championship by playing it in an iPhone Simulator. Scripted rule-engine tests clear all four levels in both modes. Random-deal 1 vs 2 play has reached Level 3 and verified elimination, two-seat continuation, save/relaunch, and level transition. I do not present it as a completed manual championship yet.
+I verified both four-level championships by directly playing random deals in an iPhone Simulator. The 1 vs 2 run ended with both Level 4 opponents eliminated and all 21,000 chips. Separate direct-play sessions also checked two-seat continuation, save/relaunch, level transitions, and restart. The 60 scripted core tests cover rules and campaign paths; neither the tests nor these playthroughs prove the app is bug-free.
 
 ## Why no ML model?
 
@@ -30,6 +31,6 @@ Monte Carlo equity is probability estimation, not machine learning. I lacked a r
 
 ## Next milestone
 
-Complete the 1 vs 2 live championship, then add lightweight card and chip animations without coupling visual timing to betting rules. Physical-device performance, accessibility, hand history, and measured difficulty are later validation targets.
+Lightweight card and chip animations now run only in the presentation layer, with Reduced Motion support. Next I will review their timing on more device sizes, then measure opponent difficulty and physical-device performance. Accessibility, hand history, and optional sound/haptics remain future work.
 
 **Short description:** Designed and developed an offline SwiftUI poker game with 1 vs 1 and 1 vs 2 campaigns, deterministic Hold'em engines, side-pot settlement, Monte Carlo equity estimates, rule-based computer opponents, local save/continue, and 60 regression tests.

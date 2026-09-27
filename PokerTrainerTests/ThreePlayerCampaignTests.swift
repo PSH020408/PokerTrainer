@@ -76,12 +76,12 @@ final class ThreePlayerCampaignTests: XCTestCase {
         XCTAssertEqual(campaign.defeatedOpponents, [.opponentOne])
     }
 
-    func testBlindsAccelerateAfterTwelveAndTwentyFourHands() throws {
+    func testBlindsKeepAcceleratingUntilTheSixtiethHand() throws {
         var campaign = ThreePlayerCampaign()
-        var game = ThreePlayerGameEngine()
         XCTAssertEqual(campaign.blindMultiplier, 1)
 
-        for hand in 1...26 {
+        for hand in 1...62 {
+            var game = ThreePlayerGameEngine()
             try game.startHand()
             while !game.isHandComplete {
                 let actor = try XCTUnwrap(game.currentActor)
@@ -90,10 +90,15 @@ final class ThreePlayerCampaignTests: XCTestCase {
             _ = campaign.recordCompletedHand(game)
             if hand == 12 { XCTAssertEqual(campaign.blindMultiplier, 2) }
             if hand == 24 { XCTAssertEqual(campaign.blindMultiplier, 4) }
+            if hand == 36 { XCTAssertEqual(campaign.blindMultiplier, 8) }
+            if hand == 48 { XCTAssertEqual(campaign.blindMultiplier, 16) }
+            if hand == 60 { XCTAssertEqual(campaign.blindMultiplier, 32) }
         }
 
-        XCTAssertEqual(campaign.handsCompletedAtLevel, 26)
-        XCTAssertEqual(campaign.blindMultiplier, 4)
+        XCTAssertEqual(campaign.handsCompletedAtLevel, 62)
+        XCTAssertEqual(campaign.blindMultiplier, 32)
+        XCTAssertEqual(ThreePlayerCampaign(level: 4, handsCompletedAtLevel: 60)
+            .blindMultiplier, 256)
         XCTAssertTrue(campaign.isValid)
     }
 
