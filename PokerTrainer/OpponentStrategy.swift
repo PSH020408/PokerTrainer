@@ -55,14 +55,14 @@ nonisolated enum OpponentStrategy {
         let multiwayAdjustment = context.activePlayers > 2 ? 3.0 : 0.0
         let texture = boardTexture(context.communityCards)
 
-        // Early levels over-call and rarely value bet. Later levels respect price,
-        // position, board texture, and the size of the preceding bet or raise.
+        // Early levels remain approachable, but should not be passive calling
+        // stations. Later levels use more position and board context.
         let foldThreshold: Double
         switch level {
         case 1:
-            foldThreshold = max(15, potOdds - 15)
+            foldThreshold = max(21, potOdds - 8)
         case 2:
-            foldThreshold = max(24, potOdds - 4)
+            foldThreshold = max(27, potOdds)
         case 3:
             foldThreshold = max(28, potOdds + 2 + positionAdjustment + multiwayAdjustment)
         default:
@@ -80,8 +80,8 @@ nonisolated enum OpponentStrategy {
 
         let valueThreshold: Double
         switch level {
-        case 1: valueThreshold = 82
-        case 2: valueThreshold = 73 + 4 * pressure
+        case 1: valueThreshold = 74
+        case 2: valueThreshold = 70 + 4 * pressure
         case 3: valueThreshold = 66 + Double(texture) * 2
             + positionAdjustment + 6 * pressure
         // Heads-up needs extra caution with thin value bets into a selective
@@ -92,7 +92,7 @@ nonisolated enum OpponentStrategy {
             + multiwayAdjustment + positionAdjustment + 10 * pressure
             + (call > 0 ? 5 : 0)
         }
-        let valueFrequency = [0.25, 0.45, 0.65, 0.82][level - 1]
+        let valueFrequency = [0.40, 0.55, 0.65, 0.82][level - 1]
             + (context.personality == .aggressive ? 0.08 :
                 context.personality == .cautious ? -0.08 : 0)
         let valueRaise = handStrength >= valueThreshold

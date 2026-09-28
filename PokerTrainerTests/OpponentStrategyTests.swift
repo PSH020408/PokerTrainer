@@ -12,7 +12,7 @@ final class OpponentStrategyTests: XCTestCase {
     func testHigherLevelStopsOvercallingWeakHands() {
         var context = sampleContext(
             cards: [Card(suit: .clubs, rank: 7), Card(suit: .diamonds, rank: 2)],
-            equity: 30,
+            equity: 43,
             pot: 100,
             call: 60,
             level: 1

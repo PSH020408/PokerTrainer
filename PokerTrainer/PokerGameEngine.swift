@@ -103,8 +103,8 @@ nonisolated struct HeadsUpGameEngine: Codable, Sendable {
     private(set) var handNumber: Int = 0
     private(set) var lastMessage: String = "Preparing the game..."
 
-    let smallBlind: Int
-    let bigBlind: Int
+    private(set) var smallBlind: Int
+    private(set) var bigBlind: Int
 
     private var nextDealer: PokerSeat
     private var deck = Deck()
@@ -342,6 +342,18 @@ nonisolated struct HeadsUpGameEngine: Codable, Sendable {
         potSize = 0
         playerCurrentBet = 0
         opponentCurrentBet = 0
+    }
+
+    mutating func setBlinds(small: Int, big: Int) throws {
+        guard currentActor == nil else {
+            throw GameRuleError.handAlreadyInProgress
+        }
+        guard small > 0, big >= small else {
+            throw GameRuleError.actionUnavailable
+        }
+        smallBlind = small
+        bigBlind = big
+        minimumRaiseIncrement = big
     }
 
     private mutating func dealHoleCards() throws {

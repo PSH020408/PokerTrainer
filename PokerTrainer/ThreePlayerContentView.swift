@@ -8,8 +8,10 @@
 import SwiftUI
 
 struct ThreePlayerTableView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var gameManager: ThreePlayerGameManager
+    @State private var showingCoach = false
+    @State private var payoutAwards: [PotAward] = []
+    @State private var payoutEvent = 0
     let returnToMenu: () -> Void
 
     init(restoring session: ThreePlayerSession?, returnToMenu: @escaping () -> Void) {
@@ -17,12 +19,14 @@ struct ThreePlayerTableView: View {
         self.returnToMenu = returnToMenu
     }
 
-    private var dealAnimation: Animation? {
-        reduceMotion ? nil : .easeOut(duration: 0.28)
-    }
-
-    private var cardTransition: AnyTransition {
-        reduceMotion ? .identity : .offset(y: -20).combined(with: .opacity)
+    private var handInsight: HandInsight {
+        HandInsight.analyze(
+            holeCards: gameManager.playerHand,
+            board: gameManager.communityCards,
+            potSize: gameManager.potSize,
+            amountToCall: gameManager.amountToCall,
+            randomHandEquity: gameManager.myEquity
+        )
     }
 
     var body: some View {
@@ -45,29 +49,60 @@ struct ThreePlayerTableView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
+
+            PotAwardEffect(
+                awards: payoutAwards,
+                eventID: payoutEvent,
+                threeSeatTable: true
+            )
         }
         .onAppear {
             gameManager.activate()
         }
+        .onDisappear {
+            gameManager.deactivate()
+        }
+        .onChange(of: gameManager.game.handOutcome) { _, outcome in
+            guard outcome != nil,
+                  let result = HandResultSummary.threePlayer(gameManager.game) else { return }
+            payoutAwards = result.awards
+            payoutEvent += 1
+        }
+        .sheet(isPresented: $showingCoach) {
+            HandCoachSheet(
+                holeCards: gameManager.playerHand,
+                board: gameManager.communityCards,
+                insight: handInsight,
+                randomHandEquity: gameManager.myEquity,
+                isFolded: gameManager.state(for: .player).isFolded
+            )
+        }
     }
 
     private var tableHeader: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
+        VStack(spacing: 3) {
+            HStack {
                 Text("PokerTrainer")
                     .font(.headline)
                     .foregroundColor(.white)
+                Spacer()
+                Button(action: leaveTable) {
+                    Label("MENU", systemImage: "house.fill")
+                        .font(.caption.bold())
+                        .foregroundColor(.white)
+                        .frame(minWidth: 70, minHeight: 44)
+                }
+                .accessibilityHint("Save progress and choose another table")
+            }
+            HStack {
                 Text("1 vs 2 · Level \(gameManager.opponentLevel)/4 · Defeated \(gameManager.defeatedCount)/2")
                     .font(.caption)
                     .foregroundColor(.yellow)
+                Spacer()
+                Text("\(gameManager.currentStreet.displayName) · Dealer: \(gameManager.dealer.displayName)")
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.8))
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(gameManager.currentStreet.displayName)
-                Text("Dealer: \(gameManager.dealer.displayName)")
-            }
-            .font(.caption)
-            .foregroundColor(.white.opacity(0.8))
         }
         .padding(10)
         .background(Color.black.opacity(0.35))
@@ -94,8 +129,7 @@ struct ThreePlayerTableView: View {
                  : "\(player.stack) chips · \(positionLabel(for: seat))")
                 .font(.caption2)
                 .foregroundColor(.white.opacity(0.8))
-                .contentTransition(.numericText())
-                .animation(dealAnimation, value: player.stack)
+                .monospacedDigit()
 
             HStack(spacing: 4) {
                 if player.hand.isEmpty {
@@ -104,16 +138,19 @@ struct ThreePlayerTableView: View {
                         .foregroundColor(.white.opacity(0.7))
                 } else {
                     ForEach(Array(player.hand.enumerated()), id: \.offset) { index, card in
-                        FlippingCardView(
-                            card: card,
-                            faceUp: gameManager.shouldRevealCards(for: seat)
-                        )
+                        DealtCardView(
+                            delay: 0.08 + Double(seat.rawValue) * 0.10
+                                + Double(index) * 0.12
+                        ) {
+                            FlippingCardView(
+                                card: card,
+                                faceUp: gameManager.shouldRevealCards(for: seat)
+                            )
+                        }
                         .id("\(seat.rawValue)-\(gameManager.game.handNumber)-\(index)")
-                        .transition(cardTransition)
                     }
                 }
             }
-            .animation(dealAnimation, value: gameManager.game.handNumber)
 
             Text(player.hand.isEmpty ? "ELIMINATED" :
                 player.isFolded ? "FOLDED" :
@@ -141,12 +178,10 @@ struct ThreePlayerTableView: View {
                 .padding(.vertical, 6)
                 .background(Color.black.opacity(0.5))
                 .clipShape(Capsule())
-                .contentTransition(.numericText())
-                .animation(dealAnimation, value: gameManager.displayedPotSize)
+                .monospacedDigit()
                 .overlay {
                     ChipFlowEffect(
                         stack: gameManager.playerStack,
-                        handComplete: gameManager.isHandComplete,
                         sourceX: 0,
                         sourceY: 70
                     )
@@ -154,7 +189,6 @@ struct ThreePlayerTableView: View {
                 .overlay {
                     ChipFlowEffect(
                         stack: gameManager.state(for: .opponentOne).stack,
-                        handComplete: gameManager.isHandComplete,
                         sourceX: -24,
                         sourceY: -70
                     )
@@ -162,7 +196,6 @@ struct ThreePlayerTableView: View {
                 .overlay {
                     ChipFlowEffect(
                         stack: gameManager.state(for: .opponentTwo).stack,
-                        handComplete: gameManager.isHandComplete,
                         sourceX: 24,
                         sourceY: -70
                     )
@@ -171,9 +204,10 @@ struct ThreePlayerTableView: View {
             HStack(spacing: 5) {
                 ForEach(0..<5, id: \.self) { index in
                     if index < gameManager.communityCards.count {
-                        CardView(card: gameManager.communityCards[index])
+                        DealtCardView(delay: 0.05 + Double(index % 3) * 0.11) {
+                            CardView(card: gameManager.communityCards[index])
+                        }
                             .id("board-\(gameManager.game.handNumber)-\(index)")
-                            .transition(cardTransition)
                     } else {
                         RoundedRectangle(cornerRadius: 6)
                             .fill(Color.white.opacity(0.12))
@@ -181,8 +215,10 @@ struct ThreePlayerTableView: View {
                     }
                 }
             }
-            .animation(dealAnimation, value: gameManager.communityCards.count)
-            .animation(dealAnimation, value: gameManager.game.handNumber)
+
+            if let result = HandResultSummary.threePlayer(gameManager.game) {
+                HandResultBanner(result: result)
+            }
         }
     }
 
@@ -192,8 +228,7 @@ struct ThreePlayerTableView: View {
                 Text("You · \(gameManager.playerStack) chips · \(positionLabel(for: .player))")
                     .font(.subheadline.bold())
                     .foregroundColor(.white)
-                    .contentTransition(.numericText())
-                    .animation(dealAnimation, value: gameManager.playerStack)
+                    .monospacedDigit()
                 Spacer()
                 if gameManager.currentActor == .player {
                     Text("YOUR TURN")
@@ -204,9 +239,22 @@ struct ThreePlayerTableView: View {
 
             HStack(spacing: 6) {
                 ForEach(Array(gameManager.playerHand.enumerated()), id: \.offset) { index, card in
-                    CardView(card: card)
+                    DealtCardView(delay: 0.30 + Double(index) * 0.12) {
+                        CardView(card: card)
+                    }
                         .id("player-\(gameManager.game.handNumber)-\(index)")
-                        .transition(cardTransition)
+                }
+                if !gameManager.playerHand.isEmpty {
+                    Button {
+                        showingCoach = true
+                    } label: {
+                        Image(systemName: "exclamationmark.bubble.fill")
+                            .font(.title2)
+                            .foregroundStyle(.yellow)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Open hand coach")
+                    .accessibilityHint("See your current hand, possible draws, and a strategy tip")
                 }
                 Spacer()
                 if !gameManager.isHandComplete,
@@ -222,7 +270,15 @@ struct ThreePlayerTableView: View {
                     }
                 }
             }
-            .animation(dealAnimation, value: gameManager.game.handNumber)
+
+            if !gameManager.playerHand.isEmpty {
+                Text(gameManager.state(for: .player).isFolded
+                     ? "FOLDED · Your cards cannot win this pot"
+                     : "MADE HAND: \(handInsight.madeHand)")
+                    .font(.caption.bold())
+                    .foregroundStyle(.yellow)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             Text(gameManager.gameMessage)
                 .font(.caption)
@@ -250,13 +306,6 @@ struct ThreePlayerTableView: View {
                         .padding(12)
                         .background(Color.yellow)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
-                }
-                if gameManager.isHandComplete {
-                    Button("CHANGE TABLE") {
-                        returnToMenu()
-                    }
-                    .font(.footnote.bold())
-                    .foregroundColor(.white)
                 }
             } else {
                 actionControls
@@ -320,5 +369,10 @@ struct ThreePlayerTableView: View {
         if gameManager.dealer == seat { return "D" }
         if gameManager.game.smallBlindSeat == seat { return "SB" }
         return "BB"
+    }
+
+    private func leaveTable() {
+        gameManager.deactivate()
+        returnToMenu()
     }
 }

@@ -177,8 +177,10 @@ struct ContentView: View {
 }
 
 private struct HeadsUpTableView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var gameManager: PokerGameManager
+    @State private var showingCoach = false
+    @State private var payoutAwards: [PotAward] = []
+    @State private var payoutEvent = 0
     let returnToMenu: () -> Void
 
     init(restoring session: HeadsUpSession?, returnToMenu: @escaping () -> Void) {
@@ -194,12 +196,14 @@ private struct HeadsUpTableView: View {
         max(gameManager.game.minimumRaiseAmount, max(gameManager.potSize, 100))
     }
 
-    private var dealAnimation: Animation? {
-        reduceMotion ? nil : .easeOut(duration: 0.28)
-    }
-
-    private var cardTransition: AnyTransition {
-        reduceMotion ? .identity : .offset(y: -20).combined(with: .opacity)
+    private var handInsight: HandInsight {
+        HandInsight.analyze(
+            holeCards: gameManager.playerHand,
+            board: gameManager.communityCards,
+            potSize: gameManager.potSize,
+            amountToCall: gameManager.amountToCall,
+            randomHandEquity: gameManager.myEquity
+        )
     }
 
     var body: some View {
@@ -210,30 +214,40 @@ private struct HeadsUpTableView: View {
 
             VStack {
                 // Header and opponent status.
-                HStack {
-                    VStack(alignment: .leading) {
+                VStack(spacing: 4) {
+                    HStack {
                         Text("PokerTrainer")
                             .font(.headline)
                             .foregroundColor(.white)
-                        Text("Opponent Level: \(gameManager.opponentLevel)")
-                            .font(.subheadline)
-                            .foregroundColor(.yellow)
-                        Text("\(gameManager.currentStreet.displayName) • Dealer: \(gameManager.dealer == .player ? "You" : "Opponent")")
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.75))
+                        Spacer()
+                        Button(action: leaveTable) {
+                            Label("MENU", systemImage: "house.fill")
+                                .font(.caption.bold())
+                                .foregroundColor(.white)
+                                .frame(minWidth: 70, minHeight: 44)
+                        }
+                        .accessibilityHint("Save progress and choose another table")
                     }
-                    Spacer()
-                    VStack(alignment: .trailing) {
-                        Text("Opponent: \(gameManager.opponentStack) chips")
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                            .contentTransition(.numericText())
-                            .animation(dealAnimation, value: gameManager.opponentStack)
-                        Text("You: \(gameManager.playerStack) chips")
-                            .font(.subheadline)
-                            .foregroundColor(.green)
-                            .contentTransition(.numericText())
-                            .animation(dealAnimation, value: gameManager.playerStack)
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("Opponent Level: \(gameManager.opponentLevel)")
+                                .font(.subheadline)
+                                .foregroundColor(.yellow)
+                            Text("\(gameManager.currentStreet.displayName) • Dealer: \(gameManager.dealer == .player ? "You" : "Opponent")")
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.75))
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing) {
+                            Text("Opponent: \(gameManager.opponentStack) chips")
+                                .font(.subheadline)
+                                .foregroundColor(.white)
+                                .monospacedDigit()
+                            Text("You: \(gameManager.playerStack) chips")
+                                .font(.subheadline)
+                                .foregroundColor(.green)
+                                .monospacedDigit()
+                        }
                     }
                 }
                 .padding()
@@ -259,13 +273,16 @@ private struct HeadsUpTableView: View {
                             CardBackView()
                         } else {
                             ForEach(Array(gameManager.opponentHand.enumerated()), id: \.offset) { index, card in
-                                FlippingCardView(card: card, faceUp: gameManager.shouldRevealOpponentCards)
+                                DealtCardView(delay: 0.08 + Double(index) * 0.11) {
+                                    FlippingCardView(
+                                        card: card,
+                                        faceUp: gameManager.shouldRevealOpponentCards
+                                    )
+                                }
                                     .id("opponent-\(gameManager.game.handNumber)-\(index)")
-                                    .transition(cardTransition)
                             }
                         }
                     }
-                    .animation(dealAnimation, value: gameManager.game.handNumber)
                 }
 
                 Spacer()
@@ -280,12 +297,10 @@ private struct HeadsUpTableView: View {
                         .padding(.vertical, 4)
                         .background(Color.black.opacity(0.5))
                         .cornerRadius(20)
-                        .contentTransition(.numericText())
-                        .animation(dealAnimation, value: gameManager.displayedPotSize)
+                        .monospacedDigit()
                         .overlay {
                             ChipFlowEffect(
                                 stack: gameManager.playerStack,
-                                handComplete: gameManager.isHandComplete,
                                 sourceX: 0,
                                 sourceY: 70
                             )
@@ -293,7 +308,6 @@ private struct HeadsUpTableView: View {
                         .overlay {
                             ChipFlowEffect(
                                 stack: gameManager.opponentStack,
-                                handComplete: gameManager.isHandComplete,
                                 sourceX: 0,
                                 sourceY: -70
                             )
@@ -306,15 +320,19 @@ private struct HeadsUpTableView: View {
                                 .foregroundColor(.white.opacity(0.6))
                         } else {
                             ForEach(Array(gameManager.communityCards.enumerated()), id: \.offset) { index, card in
-                                CardView(card: card)
+                                DealtCardView(delay: 0.05 + Double(index % 3) * 0.11) {
+                                    CardView(card: card)
+                                }
                                     .id("board-\(gameManager.game.handNumber)-\(index)")
-                                    .transition(cardTransition)
                             }
                         }
                     }
                     .frame(height: 70)
-                    .animation(dealAnimation, value: gameManager.communityCards.count)
-                    .animation(dealAnimation, value: gameManager.game.handNumber)
+
+                    if let result = HandResultSummary.headsUp(gameManager.game) {
+                        HandResultBanner(result: result)
+                            .padding(.horizontal)
+                    }
                 }
 
                 Spacer()
@@ -357,14 +375,34 @@ private struct HeadsUpTableView: View {
                     }
 
                     // Player's two private cards.
-                    HStack {
+                    HStack(spacing: 6) {
                         ForEach(Array(gameManager.playerHand.enumerated()), id: \.offset) { index, card in
-                            CardView(card: card)
+                            DealtCardView(delay: 0.28 + Double(index) * 0.11) {
+                                CardView(card: card)
+                            }
                                 .id("player-\(gameManager.game.handNumber)-\(index)")
-                                .transition(cardTransition)
+                        }
+                        if !gameManager.playerHand.isEmpty {
+                            Button {
+                                showingCoach = true
+                            } label: {
+                                Image(systemName: "exclamationmark.bubble.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(.yellow)
+                                    .frame(width: 44, height: 44)
+                            }
+                            .accessibilityLabel("Open hand coach")
+                            .accessibilityHint("See your current hand, possible draws, and a strategy tip")
                         }
                     }
-                    .animation(dealAnimation, value: gameManager.game.handNumber)
+
+                    if !gameManager.playerHand.isEmpty {
+                        Text(playerFolded
+                             ? "FOLDED · Your cards cannot win this pot"
+                             : "MADE HAND: \(handInsight.madeHand)")
+                            .font(.caption.bold())
+                            .foregroundStyle(.yellow)
+                    }
 
                     // Context-sensitive action controls.
                     if gameManager.isHandComplete || gameManager.playerHand.isEmpty {
@@ -378,13 +416,6 @@ private struct HeadsUpTableView: View {
                                 .padding()
                                 .background(Color.yellow)
                                 .cornerRadius(12)
-                        }
-                        if gameManager.isHandComplete {
-                            Button("CHANGE TABLE") {
-                                returnToMenu()
-                            }
-                            .font(.footnote.bold())
-                            .foregroundColor(.white)
                         }
                     } else {
                         VStack(spacing: 7) {
@@ -432,10 +463,44 @@ private struct HeadsUpTableView: View {
                 .cornerRadius(16)
                 .padding(.horizontal)
             }
+
+            PotAwardEffect(
+                awards: payoutAwards,
+                eventID: payoutEvent,
+                threeSeatTable: false
+            )
         }
         .onAppear {
             gameManager.activate()
         }
+        .onDisappear {
+            gameManager.deactivate()
+        }
+        .onChange(of: gameManager.game.handOutcome) { _, outcome in
+            guard outcome != nil,
+                  let result = HandResultSummary.headsUp(gameManager.game) else { return }
+            payoutAwards = result.awards
+            payoutEvent += 1
+        }
+        .sheet(isPresented: $showingCoach) {
+            HandCoachSheet(
+                holeCards: gameManager.playerHand,
+                board: gameManager.communityCards,
+                insight: handInsight,
+                randomHandEquity: gameManager.myEquity,
+                isFolded: playerFolded
+            )
+        }
+    }
+
+    private var playerFolded: Bool {
+        gameManager.game.handOutcome?.reason == .fold
+            && gameManager.game.handOutcome?.winner == .opponent
+    }
+
+    private func leaveTable() {
+        gameManager.deactivate()
+        returnToMenu()
     }
 }
 
@@ -449,17 +514,28 @@ struct CardView: View {
     }
 
     var body: some View {
-        VStack {
-            Text(card.suit.rawValue)
-                .font(.caption)
-            Text(rankString(card.rank))
-                .font(.title3)
-                .fontWeight(.bold)
+        ZStack {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.white)
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Color.black.opacity(0.25), lineWidth: 1)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 1) {
+                    Text(rankString(card.rank))
+                        .font(.system(size: 14, weight: .bold))
+                    Text(card.suit.rawValue)
+                        .font(.system(size: 11, weight: .bold))
+                }
+                Spacer(minLength: 0)
+                Text(card.suit.rawValue)
+                    .font(.system(size: 24, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                Spacer(minLength: 0)
+            }
+            .padding(4)
         }
         .foregroundColor(isRed ? .red : .black)
         .frame(width: 45, height: 65)
-        .background(Color.white)
-        .cornerRadius(6)
         .shadow(radius: 2)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(rankString(card.rank)) of \(card.suit.accessibilityName)")
@@ -478,14 +554,21 @@ struct CardView: View {
 
 struct CardBackView: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 6)
-            .fill(Color.blue)
+        ZStack {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(LinearGradient(
+                    colors: [Color.blue, Color(red: 0.03, green: 0.16, blue: 0.42)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(Color.white, lineWidth: 2)
+                .padding(3)
+            Image(systemName: "suit.spade.fill")
+                .font(.system(size: 19))
+                .foregroundStyle(.white)
+        }
             .frame(width: 45, height: 65)
-            .overlay(
-                RoundedRectangle(cornerRadius: 4)
-                    .stroke(Color.white, lineWidth: 2)
-                    .padding(3)
-            )
             .shadow(radius: 2)
             .accessibilityLabel("Face-down card")
     }
@@ -560,12 +643,11 @@ private struct CardFlipModifier: AnimatableModifier {
     }
 }
 
-// Chips travel toward the pot when a stack falls and back to a winning stack
-// after settlement. No animation writes to the rule engine or save state.
+// Chips travel from a betting stack toward the pot. Pot settlement uses the
+// larger table-wide PotAwardEffect. Neither animation changes engine state.
 struct ChipFlowEffect: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let stack: Int
-    let handComplete: Bool
     let sourceX: CGFloat
     let sourceY: CGFloat
     @State private var flights: [ChipFlight] = []
@@ -573,46 +655,53 @@ struct ChipFlowEffect: View {
     var body: some View {
         ZStack {
             ForEach(flights) { flight in
-                Circle()
-                    .fill(Color.yellow)
-                    .frame(width: 15, height: 15)
-                    .overlay { Circle().stroke(Color.orange, lineWidth: 2) }
-                    .offset(
-                        x: flight.hasMoved ? (flight.towardSource ? sourceX : 0)
-                            : (flight.towardSource ? 0 : sourceX),
-                        y: flight.hasMoved ? (flight.towardSource ? sourceY : 0)
-                            : (flight.towardSource ? 0 : sourceY)
-                    )
-                    .opacity(flight.hasMoved ? 0 : 1)
+                ForEach(0..<3, id: \.self) { chipIndex in
+                    Circle()
+                        .fill(Color.yellow)
+                        .frame(width: 20, height: 20)
+                        .overlay { Circle().stroke(Color.orange, lineWidth: 3) }
+                        .overlay {
+                            Image(systemName: "suit.spade.fill")
+                                .font(.system(size: 7))
+                                .foregroundStyle(.black)
+                        }
+                        .offset(
+                            x: flight.hasMoved ? 0 : sourceX + CGFloat(chipIndex - 1) * 8,
+                            y: flight.hasMoved ? 0 : sourceY + CGFloat(chipIndex - 1) * 6
+                        )
+                        .opacity(flight.hasFaded ? 0 : 1)
+                }
             }
         }
-        .frame(width: 15, height: 15)
+        .frame(width: 20, height: 20)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
         .onChange(of: stack) { oldValue, newValue in
             guard !reduceMotion else { return }
-            if newValue < oldValue {
-                launchFlight(towardSource: false)
-            } else if newValue > oldValue && handComplete {
-                launchFlight(towardSource: true)
-            }
+            if newValue < oldValue { launchFlight() }
         }
         .onChange(of: reduceMotion) { _, newValue in
             if newValue { flights.removeAll() }
         }
     }
 
-    private func launchFlight(towardSource: Bool) {
-        let flight = ChipFlight(id: UUID(), towardSource: towardSource)
+    private func launchFlight() {
+        let flight = ChipFlight(id: UUID())
         flights.append(flight)
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(16))
-            withAnimation(.easeOut(duration: 0.34)) {
+            withAnimation(.easeInOut(duration: 0.55)) {
                 if let index = flights.firstIndex(where: { $0.id == flight.id }) {
                     flights[index].hasMoved = true
                 }
             }
-            try? await Task.sleep(for: .milliseconds(380))
+            try? await Task.sleep(for: .milliseconds(600))
+            withAnimation(.easeOut(duration: 0.2)) {
+                if let index = flights.firstIndex(where: { $0.id == flight.id }) {
+                    flights[index].hasFaded = true
+                }
+            }
+            try? await Task.sleep(for: .milliseconds(220))
             flights.removeAll { $0.id == flight.id }
         }
     }
@@ -620,8 +709,8 @@ struct ChipFlowEffect: View {
 
 private struct ChipFlight: Identifiable {
     let id: UUID
-    let towardSource: Bool
     var hasMoved = false
+    var hasFaded = false
 }
 
 struct ActionButtonStyle: ButtonStyle {

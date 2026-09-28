@@ -25,12 +25,16 @@ let package = Package(
                 "PokerGameManager.swift",
                 "ThreePlayerContentView.swift",
                 "ThreePlayerGameManager.swift",
+                "TrainingOverlays.swift",
                 "PokerTrainerApp.swift"
             ],
             sources: [
                 "Card.swift",
                 "EquityCalculator.swift",
+                "HandInsight.swift",
+                "HandResultSummary.swift",
                 "OpponentStrategy.swift",
+                "OpponentStackPolicy.swift",
                 "ThreePlayerCampaign.swift",
                 "Evaluator.swift",
                 "LocalGameStore.swift",

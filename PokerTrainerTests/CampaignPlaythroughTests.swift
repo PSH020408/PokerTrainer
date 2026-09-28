@@ -14,6 +14,7 @@ final class CampaignPlaythroughTests: XCTestCase {
         var game = HeadsUpGameEngine()
 
         for level in 1...4 {
+            try game.setBlinds(small: 10 * level, big: 20 * level)
             try game.startHand(using: headsUpWinningDeck(dealer: level.isMultiple(of: 2)
                 ? .opponent : .player))
             let startingChips = game.totalChipsAtHandStart
@@ -37,7 +38,10 @@ final class CampaignPlaythroughTests: XCTestCase {
             if level < 4 {
                 try game.replaceStacks(
                     player: game.playerStack,
-                    opponent: 1_000 * (level + 1)
+                    opponent: OpponentStackPolicy.headsUp(
+                        level: level + 1,
+                        playerStack: game.playerStack
+                    )
                 )
             }
         }
@@ -48,6 +52,10 @@ final class CampaignPlaythroughTests: XCTestCase {
         var campaign = ThreePlayerCampaign()
 
         for level in 1...4 {
+            try game.setBlinds(
+                small: 10 * campaign.blindMultiplier,
+                big: 20 * campaign.blindMultiplier
+            )
             try game.startHand(using: threePlayerWinningDeck(dealer: game.handNumber == 0
                 ? .player : nextSeat(after: game.dealer)))
             let startingChips = game.totalChipsAtHandStart
@@ -75,10 +83,14 @@ final class CampaignPlaythroughTests: XCTestCase {
 
             if level < 4 {
                 campaign.advanceLevel()
+                let nextOpponentStack = OpponentStackPolicy.threePlayerPerOpponent(
+                    level: level + 1,
+                    playerStack: game.state(for: .player).stack
+                )
                 try game.replaceStacks(
                     player: game.state(for: .player).stack,
-                    opponentOne: 1_000 * (level + 1),
-                    opponentTwo: 1_000 * (level + 1)
+                    opponentOne: nextOpponentStack,
+                    opponentTwo: nextOpponentStack
                 )
             }
         }

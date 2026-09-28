@@ -89,6 +89,11 @@ final class ThreePlayerGameManager: ObservableObject {
         }
     }
 
+    func deactivate() {
+        cancelPendingWork()
+        hasActivated = false
+    }
+
     func startNewHand() {
         guard game.currentActor == nil else { return }
 
@@ -104,8 +109,14 @@ final class ThreePlayerGameManager: ObservableObject {
                 nextCampaign.advanceLevel()
                 try nextGame.replaceStacks(
                     player: nextGame.state(for: .player).stack,
-                    opponentOne: 1_000 * nextCampaign.level,
-                    opponentTwo: 1_000 * nextCampaign.level
+                    opponentOne: OpponentStackPolicy.threePlayerPerOpponent(
+                        level: nextCampaign.level,
+                        playerStack: nextGame.state(for: .player).stack
+                    ),
+                    opponentTwo: OpponentStackPolicy.threePlayerPerOpponent(
+                        level: nextCampaign.level,
+                        playerStack: nextGame.state(for: .player).stack
+                    )
                 )
             }
 

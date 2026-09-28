@@ -89,6 +89,11 @@ final class PokerGameManager: ObservableObject {
         }
     }
 
+    func deactivate() {
+        cancelPendingWork()
+        hasActivated = false
+    }
+
     func startNewHand() {
         guard game.currentActor == nil else { return }
 
@@ -107,10 +112,16 @@ final class PokerGameManager: ObservableObject {
                 nextLevel = min(maximumOpponentLevel, opponentLevel + 1)
                 try nextGame.replaceStacks(
                     player: nextGame.playerStack,
-                    opponent: 1_000 * nextLevel
+                    opponent: OpponentStackPolicy.headsUp(
+                        level: nextLevel,
+                        playerStack: nextGame.playerStack
+                    )
                 )
             }
 
+            // Saved hands retain their original blinds. New hands use the
+            // current level's blind structure, including old campaign saves.
+            try nextGame.setBlinds(small: 10 * nextLevel, big: 20 * nextLevel)
             try nextGame.startHand()
             game = nextGame
             opponentEquityCache.removeAll(keepingCapacity: true)
