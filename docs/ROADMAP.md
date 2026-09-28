@@ -19,8 +19,9 @@
 - [x] Hand Coach for visible made hands, direct draws, upgrade paths, call price, and cautious strategy notes; no claim of GTO or opponent-range knowledge.
 - [x] Clear winner/chip/hand-rank banner and visible pot-to-winner chip movement; folded hands are marked ineligible.
 - [x] Rebalance short campaigns: less passive early opponents, level-based 1 vs 1 blinds, and later-level opponent stacks scaled to the player's accumulated chips.
+- [x] Install and launch the current signed Debug build on an iPhone 17; the creator reported no additional issues after installation.
 
-## Next: measured quality
+## Optional validation beyond this portfolio milestone
 
 - [x] Play a random-deal 1 vs 2 campaign to the final victory screen in the iPhone Simulator.
 - [x] Verify two-seat play, blind rotation, save/relaunch, level transitions, and restart across direct-play sessions.
@@ -32,7 +33,7 @@
 - [ ] Increase production-length benchmark sample sizes and test human opponents before claiming general strength gains.
 - [ ] Measure whether the revised campaigns are appropriately challenging for several human play styles; the earlier build was cleared too quickly by the creator.
 
-## Presentation and release quality
+## Presentation and optional release quality
 
 - [x] Animate card dealing, card flips, chip contributions, and pot awards without changing engine state.
 - [ ] Complete accessibility review, optional sound/haptics, and small-screen layouts.
@@ -41,7 +42,7 @@
 - [x] Exercise 500 hands per mode with a save/restore after every action; confirm Simulator background return during a hand.
 - [x] Confirm physical-device background return and force-quit/relaunch restoration in both modes.
 - [x] Record a short follow-up user observation: 12:06–12:23, displayed battery 94% to 94%, with almost no perceived heat.
-- [ ] Test the updated build on a physical iPhone and quantify power/thermal behavior more precisely; the display reading is not a power trace.
+- [ ] Run a timed full campaign on the updated physical-device build and quantify power/thermal behavior more precisely; the display reading is not a power trace.
 - [ ] Prepare App Store screenshots, icon variants, and a short gameplay recording.
 
 **Core invariant:** chips in stacks plus unsettled pots equal the chips at hand start; cards remain unique; a street cannot advance while a required response is pending. Passing tests reduce risk but cannot prove the app is bug-free.

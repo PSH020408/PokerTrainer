@@ -18,6 +18,7 @@ An offline Texas Hold'em game for iPhone, designed and developed by **PARK, SEHO
 - 78 default core tests pass; two opt-in difficulty benchmarks and a 500-hand-per-mode save/restore stress test also pass. Both four-level campaigns were won with random deals in an iPhone Simulator on an earlier balance build; the earlier 1 vs 2 victory ended with both opponents out and 21,000 chips. The newly rebalanced full campaigns have not yet been manually cleared.
 - In a separate, approximately 16-minute iPhone 17 session, 1 vs 2 Level 1 was cleared and Level 2 began; 1 vs 1 reached Level 1 Hand 8. Background return and force-quit/relaunch restored in-progress hands in both modes. No crash or freeze was observed in that bounded run.
 - In a later user-reported play session, the battery display read 94% at 12:06 and 94% at 12:23 (17 minutes; 0 displayed percentage-point change), with almost no perceived heat. The player cleared the earlier-build 1 vs 1 campaign in about 10 minutes and reached the middle of 1 vs 2 Level 3 in about 5 minutes; that feedback prompted the new balance changes. Displayed battery percentage is too coarse to establish actual energy use.
+- The current signed Debug build was installed and launched on an iPhone 17. The creator reported no further issues after installation; no timed full-campaign run was recorded for this rebalanced build.
 
 <p align="center">
   <img src="docs/assets/hand-coach.png" width="260" alt="Hand Coach explaining a pair, a flush draw, and a strategy tip on an iPhone Simulator">
@@ -68,10 +69,10 @@ For a longer, opt-in core save/restore run:
 POKERTRAINER_STRESS=1 swift test --filter LongSessionStabilityTests
 ```
 
-## Limitations and next work
+## Scope and limitations
 
-- The smaller iPhone 17e Simulator was checked in both modes with Reduced Motion on and off, and a cramped 1 vs 1 control layout was corrected. The new coach, menu switch, result banner, and pot payout were checked in the Simulator; the updated build still needs physical-device and additional-size review.
-- Paired-deal comparisons against passive, selective, and aggressive player policies are useful diagnostics, not a general strength rating or evidence of professional-level play. The rebalanced campaign needs longer and human-opponent validation.
+- The smaller iPhone 17e Simulator was checked in both modes with Reduced Motion on and off, and a cramped 1 vs 1 control layout was corrected. The new coach, menu switch, result banner, and pot payout were checked in the Simulator. The current build opens on a physical iPhone, but its full campaign and animation timing on additional sizes have not been systematically reviewed.
+- Paired-deal comparisons against passive, selective, and aggressive player policies are useful diagnostics, not a general strength rating or evidence of professional-level play. A timed, varied human playtest would be needed to establish how challenging the rebalanced campaign feels.
 - The 17-minute battery observation and subjective heat report are encouraging but not a calibrated energy or thermal measurement. Accessibility and hand-history polish remain open.
 - Local saves are removed when the app is uninstalled. There is no cloud synchronization.
 

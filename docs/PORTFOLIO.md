@@ -28,12 +28,14 @@ I verified both four-level championships by directly playing random deals in an 
 
 On a physical iPhone 17, I directly played an earlier build for approximately 16 minutes, cleared 1 vs 2 Level 1, entered Level 2, and reached 1 vs 1 Level 1 Hand 8. Both modes restored an in-progress hand after a force-quit/relaunch, and background return also worked. In a separate later user-reported 17-minute session, the battery display stayed at 94% and almost no heat was perceived. This is not a measured zero energy draw or a full physical-device campaign. The creator's quick campaign wins led to the current balance revision, which still needs human validation.
 
+The current rebalanced build was signed, installed, and launched on the iPhone 17. I reported no further issues after installation, but did not record a timed full-campaign run on this version.
+
 ## Why no ML model?
 
 Monte Carlo equity is probability estimation, not machine learning. I lacked a representative, validated training dataset; training a useful policy directly on a phone would impose costs that this offline project does not justify. An explainable local policy is easier to test and improve. Pre-trained mobile ML remains technically possible if future data and evaluation show a real benefit.
 
-## Next milestone
+## Scope and optional follow-ups
 
-The revised 1 vs 1 and 1 vs 2 campaigns need longer, varied human playtests and a physical-device check of the new animations and coach. The earlier chip-number overlap was removed in code but still needs a device recheck. Larger production-length difficulty samples, accessibility, hand history, and optional sound/haptics remain future work.
+The offline solo-play portfolio milestone is feature-complete. Longer, varied human playtests of the revised campaigns and a physical-device review of animation timing would improve confidence, but are not represented as completed validation. Larger production-length difficulty samples, accessibility, hand history, and optional sound/haptics are future extensions rather than requirements for this milestone.
 
 **Short description:** Designed and developed an offline SwiftUI poker game with 1 vs 1 and 1 vs 2 campaigns, deterministic Hold'em engines, side-pot settlement, Monte Carlo equity estimates, rule-based computer opponents, a visible-card practice coach, local save/continue, and 78 default regression tests.
