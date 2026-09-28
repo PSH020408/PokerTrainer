@@ -84,7 +84,11 @@ nonisolated enum OpponentStrategy {
         case 2: valueThreshold = 73 + 4 * pressure
         case 3: valueThreshold = 66 + Double(texture) * 2
             + positionAdjustment + 6 * pressure
-        default: valueThreshold = 62 + Double(texture) * 3
+        // Heads-up needs extra caution with thin value bets into a selective
+        // caller. Keep the existing multiway threshold instead of applying
+        // the same adjustment to a different betting environment.
+        default: valueThreshold = 62 + (context.activePlayers == 2 ? 6 : 0)
+            + Double(texture) * 3
             + multiwayAdjustment + positionAdjustment + 10 * pressure
             + (call > 0 ? 5 : 0)
         }

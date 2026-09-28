@@ -322,26 +322,28 @@ private struct HeadsUpTableView: View {
                 // Player hand, live equity estimate, and action controls.
                 VStack(spacing: 12) {
                     // Live estimated-equity guide.
-                    HStack {
+                    VStack(alignment: .leading, spacing: 4) {
                         if !gameManager.isHandComplete {
-                            Text("Equity vs random hands:")
-                                .font(.footnote)
-                                .foregroundColor(.white)
-                            if let equity = gameManager.myEquity {
-                                Text("\(String(format: "%.1f", equity))%")
+                            HStack(spacing: 5) {
+                                Text("Equity vs random hands:")
                                     .font(.footnote)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(equity > 50 ? .green : .red)
-                            } else {
-                                Text("Calculating...")
-                                    .font(.footnote)
-                                    .foregroundColor(.white.opacity(0.7))
+                                    .foregroundColor(.white)
+                                if let equity = gameManager.myEquity {
+                                    Text("\(String(format: "%.1f", equity))%")
+                                        .font(.footnote.bold())
+                                        .foregroundColor(equity > 50 ? .green : .red)
+                                } else {
+                                    Text("Calculating...")
+                                        .font(.footnote)
+                                        .foregroundColor(.white.opacity(0.7))
+                                }
                             }
                         }
-                        Spacer()
                         Text(gameManager.gameMessage)
                             .font(.caption)
                             .foregroundColor(.yellow)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 6)
@@ -385,34 +387,42 @@ private struct HeadsUpTableView: View {
                             .foregroundColor(.white)
                         }
                     } else {
-                        HStack(spacing: 6) {
-                            Button("FOLD") {
-                                gameManager.playerAction(.fold)
-                            }
-                            .buttonStyle(ActionButtonStyle(color: .gray))
+                        VStack(spacing: 7) {
+                            HStack(spacing: 7) {
+                                Button("FOLD") {
+                                    gameManager.playerAction(.fold)
+                                }
+                                .buttonStyle(ActionButtonStyle(color: .gray))
 
-                            // Show CALL when chips are required; otherwise show CHECK.
-                            Button(gameManager.amountToCall > 0 ? "CALL \(gameManager.amountToCall)" : "CHECK") {
-                                gameManager.playerAction(gameManager.amountToCall > 0 ? .call : .check)
-                            }
-                            .buttonStyle(ActionButtonStyle(color: gameManager.amountToCall > 0 ? .green : .blue))
+                                // Show CALL when chips are required; otherwise show CHECK.
+                                Button(gameManager.amountToCall > 0
+                                       ? "CALL \(min(gameManager.amountToCall, gameManager.playerStack))"
+                                       : "CHECK") {
+                                    gameManager.playerAction(
+                                        gameManager.amountToCall > 0 ? .call : .check
+                                    )
+                                }
+                                .buttonStyle(ActionButtonStyle(color: gameManager.amountToCall > 0
+                                    ? .green : .blue))
 
-                            Button("RAISE +\(smallRaiseAmount)") {
-                                gameManager.playerAction(.raise(amount: smallRaiseAmount))
+                                Button("ALL-IN") {
+                                    gameManager.playerAllIn()
+                                }
+                                .buttonStyle(ActionButtonStyle(color: .purple))
                             }
-                            .buttonStyle(ActionButtonStyle(color: .orange))
+
+                            HStack(spacing: 7) {
+                                Button("RAISE +\(smallRaiseAmount)") {
+                                    gameManager.playerAction(.raise(amount: smallRaiseAmount))
+                                }
+                                .buttonStyle(ActionButtonStyle(color: .orange))
+
+                                Button("RAISE +\(largeRaiseAmount)") {
+                                    gameManager.playerAction(.raise(amount: largeRaiseAmount))
+                                }
+                                .buttonStyle(ActionButtonStyle(color: .red))
+                            }
                             .disabled(!gameManager.canPlayerRaise)
-
-                            Button("RAISE +\(largeRaiseAmount)") {
-                                gameManager.playerAction(.raise(amount: largeRaiseAmount))
-                            }
-                            .buttonStyle(ActionButtonStyle(color: .red))
-                            .disabled(!gameManager.canPlayerRaise)
-
-                            Button("ALL-IN") {
-                                gameManager.playerAllIn()
-                            }
-                            .buttonStyle(ActionButtonStyle(color: .purple))
                         }
                         .disabled(!gameManager.canPlayerAct)
                     }
@@ -621,8 +631,7 @@ struct ActionButtonStyle: ButtonStyle {
         configuration.label
             .font(.system(size: 11, weight: .bold))
             .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .background(color.opacity(configuration.isPressed ? 0.7 : 1.0))
             .cornerRadius(8)
     }

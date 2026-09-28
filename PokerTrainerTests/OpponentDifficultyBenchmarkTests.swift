@@ -9,9 +9,9 @@ import Foundation
 import XCTest
 @testable import PokerTrainerCore
 
-// Opt-in exploratory benchmark: identical dealt cards, a fixed check/call player,
-// seeded equity samples, and the real three-seat betting and settlement engine.
-// Chip results against this one baseline do not establish general poker strength.
+// Opt-in exploratory benchmark: paired deals, several fixed player policies,
+// seeded equity samples, and the real betting and settlement engines.
+// Results against these baselines do not establish general poker strength.
 final class OpponentDifficultyBenchmarkTests: XCTestCase {
     func testSeededEquityEstimateIsReproducible() {
         let hand = [Card(suit: .spades, rank: 14), Card(suit: .hearts, rank: 13)]
@@ -40,8 +40,9 @@ final class OpponentDifficultyBenchmarkTests: XCTestCase {
             "Set POKERTRAINER_BENCHMARK=1 to run the exploratory match benchmark."
         )
 
-        let hands = 48
-        let equitySamples = 24
+        let config = BenchmarkConfiguration(defaultEquitySamples: 800)
+        let hands = config.hands
+        let equitySamples = config.equitySamples
         for level in 1...4 {
             var playerChipDelta = 0
             var botFolds = 0
@@ -62,7 +63,20 @@ final class OpponentDifficultyBenchmarkTests: XCTestCase {
                 while let actor = game.currentActor, decisions < 100 {
                     let action: PokerAction
                     if actor == .player {
-                        action = game.amountToCall(for: actor) > 0 ? .call : .check
+                        action = config.playerStyle.action(
+                            cards: game.state(for: actor).hand,
+                            board: game.communityCards,
+                            activePlayers: game.liveSeats.count,
+                            pot: game.potSize,
+                            call: game.amountToCall(for: actor),
+                            minimumRaise: game.minimumRaiseAmount,
+                            maximumRaise: game.maximumRaiseAmount(for: actor),
+                            canRaise: game.canRaise(seat: actor),
+                            handIndex: handIndex,
+                            decisionIndex: decisions,
+                            equitySamples: equitySamples,
+                            cache: &cachedEquity
+                        )
                     } else {
                         let situation = EquitySituation(
                             hand: game.state(for: actor).hand,
@@ -121,7 +135,8 @@ final class OpponentDifficultyBenchmarkTests: XCTestCase {
                 playerChipDelta += game.state(for: .player).stack - 400
             }
 
-            print("Benchmark level \(level): \(hands) paired deals, "
+            print("Three-seat benchmark \(config.playerStyle.rawValue), "
+                + "\(equitySamples) equity samples, level \(level): \(hands) paired deals, "
                 + "player chip delta \(playerChipDelta), bot folds \(botFolds), "
                 + "calls \(botCalls), raises/all-ins \(botRaises)")
         }
@@ -133,8 +148,9 @@ final class OpponentDifficultyBenchmarkTests: XCTestCase {
             "Set POKERTRAINER_BENCHMARK=1 to run the exploratory match benchmark."
         )
 
-        let hands = 48
-        let equitySamples = 24
+        let config = BenchmarkConfiguration(defaultEquitySamples: 1_200)
+        let hands = config.hands
+        let equitySamples = config.equitySamples
         for level in 1...4 {
             var playerChipDelta = 0
             var botFolds = 0
@@ -155,7 +171,20 @@ final class OpponentDifficultyBenchmarkTests: XCTestCase {
                 while let actor = game.currentActor, decisions < 100 {
                     let action: PokerAction
                     if actor == .player {
-                        action = game.amountToCall(for: actor) > 0 ? .call : .check
+                        action = config.playerStyle.action(
+                            cards: game.playerHand,
+                            board: game.communityCards,
+                            activePlayers: 2,
+                            pot: game.potSize,
+                            call: game.amountToCall(for: actor),
+                            minimumRaise: game.minimumRaiseAmount,
+                            maximumRaise: game.maximumRaiseAmount(for: actor),
+                            canRaise: game.canRaise(seat: actor),
+                            handIndex: handIndex,
+                            decisionIndex: decisions,
+                            equitySamples: equitySamples,
+                            cache: &cachedEquity
+                        )
                     } else {
                         let situation = EquitySituation(
                             hand: game.opponentHand,
@@ -212,10 +241,82 @@ final class OpponentDifficultyBenchmarkTests: XCTestCase {
                 playerChipDelta += game.playerStack - 400
             }
 
-            print("Heads-up benchmark level \(level): \(hands) paired deals, "
+            print("Heads-up benchmark \(config.playerStyle.rawValue), "
+                + "\(equitySamples) equity samples, level \(level): \(hands) paired deals, "
                 + "player chip delta \(playerChipDelta), bot folds \(botFolds), "
                 + "calls \(botCalls), raises/all-ins \(botRaises)")
         }
+    }
+}
+
+private struct BenchmarkConfiguration {
+    let hands: Int
+    let equitySamples: Int
+    let playerStyle: BenchmarkPlayerStyle
+
+    init(defaultEquitySamples: Int) {
+        let environment = ProcessInfo.processInfo.environment
+        hands = max(1, Int(environment["POKERTRAINER_BENCHMARK_HANDS"] ?? "") ?? 48)
+        equitySamples = environment["POKERTRAINER_BENCHMARK_PRODUCTION"] == "1"
+            ? defaultEquitySamples : 24
+        playerStyle = BenchmarkPlayerStyle(
+            rawValue: environment["POKERTRAINER_BENCHMARK_STYLE"] ?? "passive"
+        ) ?? .passive
+    }
+}
+
+private enum BenchmarkPlayerStyle: String {
+    case passive
+    case selective
+    case pressure
+
+    func action(
+        cards: [Card], board: [Card], activePlayers: Int,
+        pot: Int, call: Int, minimumRaise: Int, maximumRaise: Int,
+        canRaise: Bool, handIndex: Int, decisionIndex: Int, equitySamples: Int,
+        cache: inout [EquitySituation: Double]
+    ) -> PokerAction {
+        if self == .passive {
+            return call > 0 ? .call : .check
+        }
+
+        let situation = EquitySituation(
+            hand: cards, communityCards: board, activePlayersCount: activePlayers
+        )
+        let equity: Double
+        if let cached = cache[situation] {
+            equity = cached
+        } else {
+            var generator = BenchmarkGenerator(
+                seed: 3_000_000 + UInt64(handIndex * 1_000 + decisionIndex)
+            )
+            equity = EquityCalculator.calculateEquity(
+                playerHand: cards,
+                communityCards: board,
+                activePlayersCount: activePlayers,
+                simulations: equitySamples,
+                using: &generator
+            )
+            cache[situation] = equity
+        }
+
+        let potOdds = 100 * Double(call) / Double(max(1, pot + call))
+        let foldMargin = self == .selective ? 10.0 : -6.0
+        if call > 0 && equity < max(18, potOdds + foldMargin) {
+            return .fold
+        }
+
+        let roll = Double((handIndex * 71 + decisionIndex * 113) % 1_000) / 1_000
+        let shouldRaise = self == .selective
+            ? equity >= 78 && roll < 0.45
+            : (equity >= 58 && roll < 0.72) || (call == 0 && equity >= 28 && roll < 0.08)
+        guard canRaise, maximumRaise > 0, shouldRaise else {
+            return call > 0 ? .call : .check
+        }
+
+        let fraction = self == .selective ? 0.55 : 0.75
+        let raise = max(minimumRaise, Int(Double(max(1, pot)) * fraction))
+        return raise >= maximumRaise ? .allIn : .raise(amount: raise)
     }
 }
 

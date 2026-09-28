@@ -1,6 +1,6 @@
 # PokerTrainer
 
-An offline Texas Hold'em game for iPhone, designed and developed by **PARK, SEHO**. Play against one or two computer opponents, earn chips, and clear four increasingly demanding levels. No account, Wi-Fi, server, real-money betting, or trained AI model is required.
+An offline Texas Hold'em game for iPhone, designed and developed by **PARK, SEHO**. Play against one or two computer opponents, earn chips, and clear four opponent levels designed to increase the challenge. No account, Wi-Fi, server, real-money betting, or trained AI model is required.
 
 <p align="center">
   <img src="PokerTrainer/Assets.xcassets/AppIcon.appiconset/thumbnail.png" width="220" alt="PokerTrainer app icon">
@@ -14,7 +14,7 @@ An offline Texas Hold'em game for iPhone, designed and developed by **PARK, SEHO
 - Local, versioned save/continue after each action. In 1 vs 2, an eliminated opponent sits out until the next level; the two remaining seats play heads-up.
 - On-device Monte Carlo equity estimation and rule-based opponents whose position, board-context, bet sizing, and playing personality vary by level.
 - Lightweight card-dealing, showdown-flip, chip-contribution, and pot-award effects. Reduced Motion disables the effects.
-- 61 default core tests pass, with two opt-in difficulty benchmarks. Both four-level campaigns have been won with random deals by directly operating an iPhone Simulator; the 1 vs 2 victory ended with both opponents out and 21,000 chips.
+- 62 default core tests pass; two opt-in difficulty benchmarks and a 500-hand-per-mode save/restore stress test also pass. Both four-level campaigns have been won with random deals by directly operating an iPhone Simulator; the 1 vs 2 victory ended with both opponents out and 21,000 chips.
 
 The UI uses chips, not money. The displayed “random-hand equity” estimates results against uniformly sampled unknown hands. It does **not** predict an opponent's actual betting range or guarantee a win.
 
@@ -46,17 +46,25 @@ Run the core regression suite with:
 swift test
 ```
 
-To repeat the exploratory level comparison on the same seeded deals in both modes:
+To repeat the exploratory level comparison on the same seeded deals in both modes (set `POKERTRAINER_BENCHMARK_STYLE` to `passive`, `selective`, or `pressure`):
 
 ```bash
 POKERTRAINER_BENCHMARK=1 swift test --filter OpponentDifficultyBenchmarkTests
 ```
 
+The default is 48 deals with short equity estimates. `POKERTRAINER_BENCHMARK_HANDS` changes the deal count, and `POKERTRAINER_BENCHMARK_PRODUCTION=1` uses the app's opponent decision sample counts (1,200 in 1 vs 1; 800 in 1 vs 2).
+
+For a longer, opt-in core save/restore run:
+
+```bash
+POKERTRAINER_STRESS=1 swift test --filter LongSessionStabilityTests
+```
+
 ## Limitations and next work
 
-- Visually check animation timing and Reduced Motion on more iPhone sizes; the effects do not alter rules or saved state.
-- The initial difficulty comparison uses a fixed check/call player and short equity estimates; it is not a general strength rating. Repeat with varied playing styles and production-length estimates.
-- Profile performance on physical iPhones; add accessibility and hand-history polish.
+- The smaller iPhone 17e Simulator was checked in both modes with Reduced Motion on and off, and a cramped 1 vs 1 control layout was corrected. Animation timing on more sizes remains to be reviewed.
+- Paired-deal comparisons against passive, selective, and aggressive player policies are useful diagnostics, not a general strength rating or evidence of professional-level play. Larger production-length samples are still needed.
+- Profile performance and battery use on a connected physical iPhone; add accessibility and hand-history polish.
 - Local saves are removed when the app is uninstalled. There is no cloud synchronization.
 
 See the [portfolio summary](docs/PORTFOLIO.md), [development log](docs/DEVELOPMENT_LOG.md), and [roadmap](docs/ROADMAP.md).

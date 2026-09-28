@@ -26,7 +26,7 @@ final class OpponentStrategyTests: XCTestCase {
     func testPositionChangesHighLevelPreflopDecision() {
         var context = sampleContext(
             cards: [Card(suit: .clubs, rank: 13), Card(suit: .diamonds, rank: 11)],
-            equity: 62,
+            equity: 67,
             pot: 40,
             call: 0,
             level: 4
@@ -41,7 +41,7 @@ final class OpponentStrategyTests: XCTestCase {
     func testWetBoardDiscouragesMarginalValueRaise() {
         var context = sampleContext(
             cards: [Card(suit: .spades, rank: 14), Card(suit: .clubs, rank: 10)],
-            equity: 63,
+            equity: 67,
             pot: 100,
             call: 0,
             level: 4
@@ -100,6 +100,29 @@ final class OpponentStrategyTests: XCTestCase {
         XCTAssertEqual(OpponentStrategy.decide(context), .call)
     }
 
+    func testHighestLevelAvoidsThinValueBetAgainstSelectiveCalls() {
+        var context = sampleContext(
+            cards: [Card(suit: .spades, rank: 14), Card(suit: .clubs, rank: 10)],
+            equity: 64,
+            pot: 100,
+            call: 0,
+            level: 3
+        )
+        context.isInPosition = true
+        context.communityCards = [
+            Card(suit: .clubs, rank: 2),
+            Card(suit: .diamonds, rank: 8),
+            Card(suit: .hearts, rank: 13)
+        ]
+        XCTAssertEqual(OpponentStrategy.decide(context), .raise(amount: 55))
+
+        context.level = 4
+        XCTAssertEqual(OpponentStrategy.decide(context), .check)
+
+        context.activePlayers = 3
+        XCTAssertEqual(OpponentStrategy.decide(context), .raise(amount: 65))
+    }
+
     func testPersonalityChangesActionsWithoutChangingLevel() {
         var context = sampleContext(
             cards: [Card(suit: .spades, rank: 13), Card(suit: .clubs, rank: 11)],
@@ -108,6 +131,7 @@ final class OpponentStrategyTests: XCTestCase {
             call: 0,
             level: 4
         )
+        context.isInPosition = true
         context.personality = .aggressive
         XCTAssertEqual(OpponentStrategy.decide(context), .raise(amount: 30))
 
