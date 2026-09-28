@@ -15,6 +15,7 @@ An offline Texas Hold'em game for iPhone, designed and developed by **PARK, SEHO
 - On-device Monte Carlo equity estimation and rule-based opponents whose position, board-context, bet sizing, and playing personality vary by level.
 - Lightweight card-dealing, showdown-flip, chip-contribution, and pot-award effects. Reduced Motion disables the effects.
 - 62 default core tests pass; two opt-in difficulty benchmarks and a 500-hand-per-mode save/restore stress test also pass. Both four-level campaigns have been won with random deals by directly operating an iPhone Simulator; the 1 vs 2 victory ended with both opponents out and 21,000 chips.
+- In a separate, approximately 16-minute iPhone 17 session, 1 vs 2 Level 1 was cleared and Level 2 began; 1 vs 1 reached Level 1 Hand 8. Background return and force-quit/relaunch restored in-progress hands in both modes. No crash or freeze was observed in that bounded run.
 
 The UI uses chips, not money. The displayed “random-hand equity” estimates results against uniformly sampled unknown hands. It does **not** predict an opponent's actual betting range or guarantee a win.
 
@@ -64,7 +65,7 @@ POKERTRAINER_STRESS=1 swift test --filter LongSessionStabilityTests
 
 - The smaller iPhone 17e Simulator was checked in both modes with Reduced Motion on and off, and a cramped 1 vs 1 control layout was corrected. Animation timing on more sizes remains to be reviewed.
 - Paired-deal comparisons against passive, selective, and aggressive player policies are useful diagnostics, not a general strength rating or evidence of professional-level play. Larger production-length samples are still needed.
-- Profile performance and battery use on a connected physical iPhone; add accessibility and hand-history polish.
+- Repeat a longer physical-iPhone session and measure battery/thermal behavior unplugged. The first device run remained on charge, so it cannot establish battery drain or independent heat impact. Add accessibility and hand-history polish.
 - Local saves are removed when the app is uninstalled. There is no cloud synchronization.
 
 See the [portfolio summary](docs/PORTFOLIO.md), [development log](docs/DEVELOPMENT_LOG.md), and [roadmap](docs/ROADMAP.md).

@@ -25,12 +25,14 @@ The first prototype exposed betting-round, all-in, hidden-card, tie-equity, and 
 
 I verified both four-level championships by directly playing random deals in an iPhone Simulator. The 1 vs 2 run ended with both Level 4 opponents eliminated and all 21,000 chips. Separate direct-play sessions also checked two-seat continuation, save/relaunch, level transitions, and restart. A smaller iPhone Simulator revealed cramped 1 vs 1 controls, which I revised and visually rechecked with Reduced Motion. Paired-deal comparisons against three player styles exposed a narrow matchup where Level 4 was not clearly stronger than Level 3; I tightened its heads-up thin value-bet behavior without changing the multiway threshold. These controlled results do not prove general or professional-level strength, and neither tests nor playthroughs prove the app is bug-free.
 
+On a physical iPhone 17, I directly played for approximately 16 minutes, cleared 1 vs 2 Level 1, entered Level 2, and reached 1 vs 1 Level 1 Hand 8. Both modes restored an in-progress hand after a force-quit/relaunch, and background return also worked. No crash or freeze was observed, but this is a bounded smoke test, not a full physical-device campaign or an unplugged battery/thermal study.
+
 ## Why no ML model?
 
 Monte Carlo equity is probability estimation, not machine learning. I lacked a representative, validated training dataset; training a useful policy directly on a phone would impose costs that this offline project does not justify. An explainable local policy is easier to test and improve. Pre-trained mobile ML remains technically possible if future data and evaluation show a real benefit.
 
 ## Next milestone
 
-Lightweight card and chip animations run only in the presentation layer, with Reduced Motion support. A 500-hand-per-mode save/restore stress test passed. Next I will review animation timing on more sizes, enlarge production-length difficulty samples, and measure performance on a connected physical iPhone. Accessibility, hand history, and optional sound/haptics remain future work.
+Lightweight card and chip animations run only in the presentation layer, with Reduced Motion support. A 500-hand-per-mode save/restore stress test passed. Next I will review brief chip-number overlap seen during device animations, enlarge production-length difficulty samples, and measure battery/thermal behavior during a longer unplugged iPhone session. Accessibility, hand history, and optional sound/haptics remain future work.
 
 **Short description:** Designed and developed an offline SwiftUI poker game with 1 vs 1 and 1 vs 2 campaigns, deterministic Hold'em engines, side-pot settlement, Monte Carlo equity estimates, rule-based computer opponents, local save/continue, and 62 default regression tests.
